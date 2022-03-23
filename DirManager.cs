@@ -23,7 +23,6 @@ public class DirManager
 		//DirManager.maxRam = maxRam * 1048576;
 		SaveLocation = saveLocation;
 		key = encryptionKey;
-		Dir._nonComputed = new List<OurFile>();
 		Root = new Dir(root);
 	}
 
@@ -81,6 +80,56 @@ public class DirManager
 
         _isEncrypted = true;
 	}
+	public void CompileFile()
+	{
+		string inputDirectoryPath = SaveLocation.FullName;
+		string outputFilePath = $"{SaveLocation.Parent.FullName}\\{Root.self.Name}.cry";
+		
+		//Overly complicated way of loading manifest first
+		string[] temp = Directory.GetFiles(inputDirectoryPath, "*.cry_item");
+		string[] temp_manifest = Directory.GetFiles(inputDirectoryPath, "manifest");
+		string[] inputFilePaths = new string[temp.Length + temp_manifest.Length];
+		temp_manifest.CopyTo(inputFilePaths, 0);
+		temp.CopyTo(inputFilePaths, temp_manifest.Length);
+		Console.WriteLine("Number of files: {0}.", inputFilePaths.Length);
+		using (var outputStream = File.Create(outputFilePath))
+		{
+			foreach (var inputFilePath in inputFilePaths)
+			{
+				FileInfo file = new FileInfo(inputFilePath);
+				using (var inputStream = File.OpenRead(inputFilePath))
+				{
+					using (BufferedStream bf = new BufferedStream(inputStream))
+					{
+
+						// Buffer size can be passed as the second argument.
+
+
+
+						StreamWriter sw = new StreamWriter(outputStream);
+						//Remove extension from name unless manifest
+						sw.Write($"[begin]:[{(file.Name == "manifest" ? file.Name : file.Name.Remove(file.Name.Length - 9, 9))}]");
+						sw.Flush();
+						outputStream.Seek(0, SeekOrigin.End);
+						inputStream.CopyTo(outputStream);
+					}
+				}
+				Console.WriteLine("The file {0} has been processed.", inputFilePath);
+			}
+		}
+	}
+
+	public static void loadFile(FileInfo path)
+    {
+        
+		using (var inputStream = File.OpenRead(path.FullName))
+        {
+			StreamReader sr = new StreamReader(inputStream);
+			Console.WriteLine("File contents...");
+			Console.WriteLine(sr.ReadToEnd());
+			Console.ReadLine();
+        }
+    }
 
 	public void GenerateHash()
     {
@@ -151,13 +200,12 @@ public class DirManager
 public class Dir
 {
 	private Dir parent; //If null, it signified it's the root
-	private DirectoryInfo self;
+	public DirectoryInfo self { get; private set; }
 	private List<Dir> subDirs = new List<Dir>();
 	private List<OurFile> files = new List<OurFile>();
 	private bool filesLoaded = false;
 	private bool subDirsLoaded = false;
 	public double size { get; private set; }
-	public static List<OurFile> _nonComputed;
 
     public Dir(DirectoryInfo dir, Dir parent = null)
     {
@@ -178,7 +226,6 @@ public class Dir
 			size += f.Length;
 			var nf = new OurFile(f, this);
 			files.Add(nf);
-			_nonComputed.Add(nf);
 		}
 
 		//Compute check
@@ -233,9 +280,12 @@ public class Dir
 
 	public bool isHashed()
     {
-		if (_nonComputed.Count > 0)
-		return false;
-		else return true;
+		foreach(OurFile f in getFiles())
+        {
+			if (!f.isComputed)
+				return false;
+        }
+		return true;
     }
 
 	public List<OurFile> getFiles()
@@ -322,9 +372,7 @@ public class OurFile
 						.ToLower();
 			}
         }
-        GC.Collect();
-		//hash = info.GetHashCode().ToString();
-		Dir._nonComputed.Remove(this);
+		
 		isComputed = true;
 	}
 
@@ -337,35 +385,38 @@ public class OurFile
         //Error if file cannot be accessed
         try
         {
-			//Buffered
-			using (FileStream fileRead = info.OpenRead())
+            //Buffered
+            using (FileStream fileRead = info.OpenRead())
             {
-                using (FileStream fileWrite = File.OpenWrite($"{location.FullName}\\{info.Name}"))
+                using (FileStream fileWrite = File.OpenWrite($"{location.FullName}\\{uuid}.cry_item"))
                 {
 					using (BufferedStream bRead = new BufferedStream(fileRead))
 					{
 						using (BufferedStream bWrite = new BufferedStream(fileWrite))
 						{
-							using (CryptoStream cs = new CryptoStream(bWrite, key.CreateEncryptor(), CryptoStreamMode.Write))
-							{
-								bRead.CopyTo(cs);
-							}
+							/*using (CryptoStream cs = new CryptoStream(bWrite, key.CreateEncryptor(), CryptoStreamMode.Write))
+							{*/
+								bRead.CopyTo(bWrite);
+							//}
 						}
 					}
                 }
             }
+
 			DirManager.encryptCount++;
-        }
+		}
         catch (Exception e)
         {
 			DirManager.failed.Add(new FailedItem(this, e));
         }
 
 
-        GC.Collect();
+GC.Collect();
 	}
-
+	
 }
+
+
 
 public class Manifest
 {
@@ -385,25 +436,33 @@ public class Manifest
 	{
         using (FileStream fs = File.Create($"{location.FullName}\\manifest"))
         {
-            using (CryptoStream cs = new CryptoStream(fs, key.CreateEncryptor(), CryptoStreamMode.Write))
-            {
-                using (StreamWriter sw = new StreamWriter(cs))
+            /*using (CryptoStream cs = new CryptoStream(fs, key.CreateEncryptor(), CryptoStreamMode.Write))
+            {*/
+                using (StreamWriter sw = new StreamWriter(fs))
                 {
                     sw.Write(this.Serialize());
                 }
-            }
+            //}
         }
-        
-		/*using (FileStream fs = File.Create($"{location.FullName}\\manifest"))
-		{
-			
-			using (StreamWriter sw = new StreamWriter(fs))
-			{
-				sw.Write(this.Serialize());
-			}
-			
-		}*/
 	}
+
+	public static void LoadFromDisk(FileInfo from, AesCryptoServiceProvider key)
+    {
+		using (FileStream fileRead = File.OpenRead(from.FullName))
+		{
+			using(BufferedStream bRead = new BufferedStream(fileRead))
+            {
+				using(CryptoStream cs = new CryptoStream(bRead, key.CreateDecryptor(), CryptoStreamMode.Read))
+                {
+					using(StreamReader sr = new StreamReader(cs))
+                    {
+						string manifest = sr.ReadLine();
+						Console.WriteLine(manifest);
+                    }
+                }
+            }
+		}
+    }
 
 	public void Add(ManifestItem item)
     {

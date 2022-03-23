@@ -125,6 +125,11 @@ namespace cry_locker
                                 Manifest man = DM.generateManifest();
                                 man.WriteToDisk(temp_dir, AES);
 
+                                Console.Clear();
+                                Console.WriteLine("Compiling...");
+                                DM.CompileFile();
+                                Console.ReadLine();
+
 
                                 //Check for failed items
                                 if (DirManager.failed.Count > 0)
@@ -181,23 +186,17 @@ namespace cry_locker
                          * save files to a temp folder 
                          * on close, check for files changes and resave
                          */
-                        
                         if (path != "" && path != null)
                         {
 
                             //FileInfo file = new FileInfo($"C:\\Users\\Camer\\Documents\\VSProjects");
                             //DirectoryInfo dir = new DirectoryInfo($"D:\\{path}");
-                            DirectoryInfo dir = new DirectoryInfo($"C:\\Users\\Camer\\Documents\\VSProjects\\{path}");
+                            FileInfo file = new FileInfo($"C:\\Users\\Camer\\Documents\\VSProjects\\{path}");
 
-                            if (dir.Exists)
+                            if (file.Exists)
                             {
                                 //Scan selected directory and sub dirs
                                 Console.Clear();
-                                Console.WriteLine("Discovering Files!...");
-                                DirManager DM = new DirManager(dir);
-
-                                //Begin hashing async
-                                DM.GenerateHash();
 
                                 //Ask for password
                                 string p1 = "password";
@@ -232,84 +231,9 @@ namespace cry_locker
                                 AES.Mode = CipherMode.CBC;
                                 AES.Padding = PaddingMode.PKCS7;
 
+                                //Manifest.LoadFromDisk(file, AES);
 
-                                //Setup temp folder
-                                temp_folder_location = $"{dir.Parent.FullName}\\.{dir.Name}.cry_temp";
-                                DirectoryInfo temp_dir = Directory.CreateDirectory(temp_folder_location);
-                                temp_dir.Attributes = FileAttributes.Hidden;
-
-                                DirManager.key = AES;
-                                DirManager.SaveLocation = temp_dir;
-
-
-                                while (!DM.isLoaded())
-                                {
-                                    Console.Clear();
-                                    Console.WriteLine($"{getLoading()} Discovering files!");
-                                    Thread.Sleep(1000);
-                                }
-
-                                new Thread(DM.EncryptFiles).Start();
-
-                                //Wait for encryption
-                                while (!DM.isEncrypted())
-                                {
-                                    Console.Clear();
-                                    Console.WriteLine($"{getLoading()} Encrypted:{DirManager.encryptCount}/{DM.getFiles().Count - DirManager.failed.Count}\n  Failed:{DirManager.failed.Count}");
-                                    Thread.Sleep(1000);
-                                }
-
-                                //Check hashing
-                                while (!DM.isHashed())
-                                {
-                                    Thread.Sleep(1000);
-                                    Console.Clear();
-                                    Console.WriteLine($"{getLoading()} Computing Hashes!");
-                                }
-                                Manifest man = DM.generateManifest();
-                                man.WriteToDisk(temp_dir, AES);
-
-
-                                //Check for failed items
-                                if (DirManager.failed.Count > 0)
-                                {
-                                    Console.Clear();
-                                    string ms = "ms";
-                                    string s = "s";
-                                    Console.WriteLine($"Attempted to encrypt {DM.getFiles().Count} files, {dataSizeConverter(DM.Root.size)} {dataSizePostFix(DM.Root.size)} in {Math.Round(DirManager.encryptionTime >= 1000 ? DirManager.encryptionTime / 1000 : DirManager.encryptionTime)}{(DirManager.encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM.Root.size / (DirManager.encryptionTime / 1000))} {dataSizePostFix(DM.Root.size / (DirManager.encryptionTime / 1000))}/s), however {DirManager.failed.Count} failed!\nFailed to encrypted:\n[");
-                                    //Console.WriteLine($"Encryption completed in {DirManager.encryptionTime}, with {DirManager.failed.Count} failures!\nFailed to encrypted:\n[");
-                                    foreach (FailedItem i in DirManager.failed)
-                                    {
-                                        Console.WriteLine($"{i.file.path}{i.file.name}");
-                                        Console.WriteLine($"\t{i.e.Message}");
-                                    }
-                                    Console.WriteLine("]");
-
-                                }
-                                else
-                                {
-                                    Console.Clear();
-                                    string ms = "ms";
-                                    string s = "s";
-                                    Console.WriteLine($"Encrypted {dataSizeConverter(DM.Root.size)} {dataSizePostFix(DM.Root.size)} in {Math.Round(DirManager.encryptionTime >= 1000 ? DirManager.encryptionTime / 1000 : DirManager.encryptionTime)}{(DirManager.encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM.Root.size / (DirManager.encryptionTime / 1000))} {dataSizePostFix(DM.Root.size / (DirManager.encryptionTime / 1000))}/s)");
-
-                                    //Remove temp
-                                    bool deleted = false;
-                                    while (!deleted)
-                                    {
-                                        try
-                                        {
-                                            temp_dir.Delete(true);
-                                            deleted = true;
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            Console.WriteLine(e.Message);
-                                            Console.WriteLine("\nPress enter to retry");
-                                            Console.ReadLine();
-                                        }
-                                    }
-                                }
+                                DirManager.loadFile(file);
 
                                 Console.WriteLine("Press any key to continue...");
                                 Console.ReadKey();
