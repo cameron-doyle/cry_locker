@@ -1,0 +1,12 @@
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\cry_locker.exe.config
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\cry_locker.exe
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\cry_locker.pdb
+C:\Users\Camer\Documents\VSProjects\cry_locker\obj\Debug\cry_locker.csproj.CoreCompileInputs.cache
+C:\Users\Camer\Documents\VSProjects\cry_locker\obj\Debug\cry_locker.exe
+C:\Users\Camer\Documents\VSProjects\cry_locker\obj\Debug\cry_locker.pdb
+C:\Users\Camer\Documents\VSProjects\cry_locker\obj\Debug\cry_locker.csproj.AssemblyReference.cache
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\Newtonsoft.Json.dll
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\Newtonsoft.Json.xml
+C:\Users\Camer\Documents\VSProjects\cry_locker\obj\Debug\cry_locker.csproj.CopyComplete
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\Crc32.NET.dll
+C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Debug\Crc32.NET.xml
