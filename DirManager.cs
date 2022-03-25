@@ -14,14 +14,15 @@ using System.Diagnostics;
 public class DirManager
 {
 	public Dir Root { get; private set; }
-	public static DirectoryInfo SaveLocation { private get; set; }
+	public static FileInfo EncryptFile { private get; set; }
+	public static DirectoryInfo DecryptFolder { private get; set; }
 	public static AesCryptoServiceProvider key { private get; set; }
 	private bool _isEncrypted = false;
 
-	public DirManager(DirectoryInfo root, DirectoryInfo saveLocation = null, AesCryptoServiceProvider encryptionKey = null)
+	public DirManager(DirectoryInfo root, FileInfo encryptFile = null, AesCryptoServiceProvider encryptionKey = null)
 	{
 		//DirManager.maxRam = maxRam * 1048576;
-		SaveLocation = saveLocation;
+		EncryptFile = encryptFile;
 		key = encryptionKey;
 		Root = new Dir(root);
 	}
@@ -48,11 +49,11 @@ public class DirManager
 		return key;
 	}
 
-	public static DirectoryInfo getSaveLocation()
+	public static FileInfo getEncryptFile()
 	{
-		if (SaveLocation == null)
+		if (EncryptFile == null)
 			throw new NullReferenceException("SaveLocation was never set!");
-		return SaveLocation;
+		return EncryptFile;
 	}
 
 	public static int encryptCount = 0;
@@ -80,9 +81,183 @@ public class DirManager
 
         _isEncrypted = true;
 	}
+
+	public static int Decrypted = 0;
+	public static int ToDecrypt = 0;
+	public static bool isDecrypted = false;
+	public static bool DecryptFailed = false;
+	public static string DecryptFailReason = null;
+	public static void DecryptFiles()
+    {
+		isDecrypted = false;
+		Decrypted = 0;
+		DecryptFailed = false;
+		DecryptFailReason = null;
+		List<LockerFile> lockerInfo = getLockerFileInfo(getEncryptFile());
+		ToDecrypt = lockerInfo.Count - 1;
+		LockerFile manifestInfo = null;
+        foreach (LockerFile lf in lockerInfo)
+        {
+			if(lf.name == "manifest")
+            {
+				manifestInfo = lf;
+				lockerInfo.Remove(lf);
+				break;
+            }
+        }
+
+		if(manifestInfo == null)
+        {
+			DecryptFailReason = "Manifest file missing, locker is likely corrupt!";
+			DecryptFailed = true;
+			return;
+        }
+
+		//Decrypt manifest
+		Manifest manifest = loadManifest(getEncryptFile(), key, manifestInfo);
+
+		//Decrypt files
+		foreach(LockerFile lf in lockerInfo)
+        {
+			ManifestItem manifestItem = manifest.getItem(lf.name);
+			string path = $"{DecryptFolder.FullName}{manifestItem.Path}";
+
+			//Create folders required for path
+			Directory.CreateDirectory(path);
+
+			using (FileStream fReader = File.OpenRead(getEncryptFile().FullName))
+			{
+				using (FileStream fWriter = File.Create($"{path}{manifestItem.Name}"))
+				{
+					using (CryptoStream cs = new CryptoStream(fWriter, key.CreateDecryptor(), CryptoStreamMode.Write))
+					{
+						//Seek to starting byte
+						fReader.Seek(lf.startIndex, SeekOrigin.Begin);
+						//Loop through desired bytes, decrypt then write.
+						for (int i = 0; i < lf.endIndex - lf.startIndex; i++)
+						{
+							cs.WriteByte((byte)fReader.ReadByte());
+						}
+					}
+                }
+			}
+			Decrypted++;
+		}
+		isDecrypted = true;
+	}
+
+	private static Manifest loadManifest(FileInfo locker, AesCryptoServiceProvider key, LockerFile info)
+    {
+		using(FileStream fs = File.OpenRead(locker.FullName))
+        {
+			using (BinaryReader br = new BinaryReader(fs))
+			{
+				byte[] buffer = new byte[(info.endIndex - info.startIndex)];
+
+				fs.Seek(info.startIndex, SeekOrigin.Begin);
+				br.Read(buffer, 0, info.endIndex - info.startIndex);
+				using (MemoryStream ms = new MemoryStream(buffer))
+				{
+					using (CryptoStream cs = new CryptoStream(ms, key.CreateDecryptor(), CryptoStreamMode.Read))
+					{
+						buffer = new byte[ms.Length];
+						using (StreamReader sr = new StreamReader(cs))
+                        {
+							return Manifest.Deserialize(sr.ReadToEnd());
+						}
+
+					}
+				}
+			}
+			
+        }
+    }
+
+	private static List<LockerFile> getLockerFileInfo(FileInfo locker)
+	{
+		//TODO optimise this method
+		List<LockerFile> lockerFiles = new List<LockerFile>();
+		using (FileStream fs = File.OpenRead(locker.FullName))
+		{
+			using(BufferedStream buff = new BufferedStream(fs))
+			{
+				using (BinaryReader bn = new BinaryReader(buff))
+				{
+					
+					string pattern = "[beginFile:";
+					int length = pattern.Length;
+					byte[] bytes = new byte[length];
+					int startIndex = -1;
+					string name = "";
+					bool readingHeader = false;
+					for (int i = 0; i <= fs.Length; i++)
+					{
+						//Shift bytes left
+						bytes = shiftLeft(bytes);
+
+						//Read data to array
+                        try {
+							//Write byte to last element because of shifting to left.
+							bytes[10] = bn.ReadByte();
+						} catch (EndOfStreamException e) {
+							//End of file
+							var lf = new LockerFile(startIndex, (int)fs.Length, name);
+							lockerFiles.Add(lf);
+							break; //Probably don't need to break here, but it saves time not having to go through header management
+						}
+
+
+						#region header management
+						//Check for header pattern
+						if (Encoding.Default.GetString(bytes).StartsWith(pattern))
+						{
+							readingHeader = true;
+							
+							//Previous header was found, record end of file data.
+							if (startIndex >= 0)
+							{
+								var lf = new LockerFile(startIndex, i - 10, name);
+								lockerFiles.Add(lf);
+								startIndex = -1;
+								name = "";
+							}
+						}
+						else if (readingHeader)
+						{
+							if (Encoding.Default.GetString(bytes).EndsWith("]"))
+							{
+								//Check for end header symbol
+								readingHeader = false;
+								startIndex = i + 1;
+							}
+							else
+							{
+								//Else, still reading name
+								name += Encoding.Default.GetString(bytes, 10, 1);
+							}
+						}
+                        #endregion
+                    }
+                }
+				
+			}
+		}
+		return lockerFiles;
+	}
+
+	private static byte[] shiftLeft(byte[] input)
+	{
+		byte[] shifted = new byte[input.Length];
+		for (int i = 0; i < input.Length; i++)/*minus 1 for length to index, another because we don't want the last value of input*/
+		{
+			shifted[i] = input[(i + 1) % input.Length];
+		}
+		return shifted;
+	}
+
 	public void CompileFile()
 	{
-		string inputDirectoryPath = SaveLocation.FullName;
+		/*string inputDirectoryPath = SaveLocation.FullName;
 		string outputFilePath = $"{SaveLocation.Parent.FullName}\\{Root.self.Name}.cry";
 		
 		//Overly complicated way of loading manifest first
@@ -116,7 +291,7 @@ public class DirManager
 				}
 				Console.WriteLine("The file {0} has been processed.", inputFilePath);
 			}
-		}
+		}*/
 	}
 
 	public static void loadFile(FileInfo path)
@@ -315,7 +490,8 @@ public class Dir
         }
         else
         {
-			return $"./{self.Name}/";
+			//Is root
+			return $"/";
         }
     }
 }
@@ -378,40 +554,39 @@ public class OurFile
 
 	public void Encrypt()
 	{
-		AesCryptoServiceProvider key = DirManager.getKey();
-		DirectoryInfo location = DirManager.getSaveLocation();
-
-
         //Error if file cannot be accessed
         try
         {
-            //Buffered
             using (FileStream fileRead = info.OpenRead())
-            {
-                using (FileStream fileWrite = File.OpenWrite($"{location.FullName}\\{uuid}.cry_item"))
-                {
+			{
+				using (FileStream fileWrite = File.OpenWrite(DirManager.getEncryptFile().FullName))
+				{
+					fileWrite.Seek(0, SeekOrigin.End);
 					using (BufferedStream bRead = new BufferedStream(fileRead))
 					{
 						using (BufferedStream bWrite = new BufferedStream(fileWrite))
 						{
-							/*using (CryptoStream cs = new CryptoStream(bWrite, key.CreateEncryptor(), CryptoStreamMode.Write))
-							{*/
-								bRead.CopyTo(bWrite);
-							//}
+							StreamWriter sr = new StreamWriter(bWrite);
+							sr.Write($"[beginFile:{uuid}]");
+							sr.Flush();
+						
+							using (CryptoStream cs = new CryptoStream(bWrite, DirManager.getKey().CreateEncryptor(), CryptoStreamMode.Write))
+							{
+
+								bWrite.Seek(0, SeekOrigin.End);
+								bRead.CopyTo(cs);
+							}
 						}
 					}
-                }
-            }
-
+				}
+			}
 			DirManager.encryptCount++;
 		}
         catch (Exception e)
         {
 			DirManager.failed.Add(new FailedItem(this, e));
         }
-
-
-GC.Collect();
+		GC.Collect();
 	}
 	
 }
@@ -432,37 +607,48 @@ public class Manifest
 		return new Manifest(newItems);
     }
 
-	public void WriteToDisk(DirectoryInfo location, AesCryptoServiceProvider key)
-	{
-        using (FileStream fs = File.Create($"{location.FullName}\\manifest"))
+	public ManifestItem getItem(string uuid)
+    {
+		foreach(var i in Items)
         {
-            /*using (CryptoStream cs = new CryptoStream(fs, key.CreateEncryptor(), CryptoStreamMode.Write))
-            {*/
-                using (StreamWriter sw = new StreamWriter(fs))
+			if(i.UUID == uuid)
+            {
+				return i;
+            }
+        }
+		return null;
+    }
+
+	public void WriteToDisk(AesCryptoServiceProvider key)
+	{
+		if (DirManager.getEncryptFile().Exists)
+		{
+			using (FileStream fs = File.OpenWrite(DirManager.getEncryptFile().FullName))
+			{
+				fs.Seek(0, SeekOrigin.End);
+				StreamWriter sw = new StreamWriter(fs);
+				sw.Write($"[beginFile:manifest]");
+				sw.Flush();
+				fs.Seek(0, SeekOrigin.End);
+				using (CryptoStream cs = new CryptoStream(fs, key.CreateEncryptor(), CryptoStreamMode.Write))
                 {
-                    sw.Write(this.Serialize());
-                }
-            //}
+					sw = new StreamWriter(cs);
+					sw.Write(this.Serialize());
+
+					//Cleanup
+					sw.Flush();
+					sw.Close();
+					sw.Dispose();
+				}
+			}
+        }
+        else
+        {
+			Console.WriteLine("Encryption locker couldn't be found, failed to save manifest!");
+			Console.WriteLine("If a file was generated, it's highly recommended you deleted it!");
+			Console.ReadLine();
         }
 	}
-
-	public static void LoadFromDisk(FileInfo from, AesCryptoServiceProvider key)
-    {
-		using (FileStream fileRead = File.OpenRead(from.FullName))
-		{
-			using(BufferedStream bRead = new BufferedStream(fileRead))
-            {
-				using(CryptoStream cs = new CryptoStream(bRead, key.CreateDecryptor(), CryptoStreamMode.Read))
-                {
-					using(StreamReader sr = new StreamReader(cs))
-                    {
-						string manifest = sr.ReadLine();
-						Console.WriteLine(manifest);
-                    }
-                }
-            }
-		}
-    }
 
 	public void Add(ManifestItem item)
     {
@@ -538,5 +724,18 @@ public class FailedItem
     {
 		this.file = file;
 		this.e = e;
+    }
+}
+
+public class LockerFile
+{
+	public int startIndex { get; private set; }
+	public int endIndex { get; private set; }
+	public string name { get; private set; }
+	public LockerFile(int startIndex, int endIndex, string name)
+    {
+		this.startIndex = startIndex;
+		this.endIndex = endIndex;
+		this.name = name;
     }
 }

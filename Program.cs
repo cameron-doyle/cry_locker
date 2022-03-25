@@ -87,14 +87,19 @@ namespace cry_locker
                                 AES.Mode = CipherMode.CBC;
                                 AES.Padding = PaddingMode.PKCS7;
 
-
-                                //Setup temp folder
-                                temp_folder_location = $"{dir.Parent.FullName}\\.{dir.Name}.cry_temp";
-                                DirectoryInfo temp_dir = Directory.CreateDirectory(temp_folder_location);
-                                temp_dir.Attributes = FileAttributes.Hidden;
-
                                 DirManager.key = AES;
-                                DirManager.SaveLocation = temp_dir;
+
+                                //Check for existing locker file and increment name
+                                string name = $"{dir}.cry";
+                                int index = 0;
+                                while(new FileInfo(name).Exists)
+                                {
+                                    index++;
+                                    name = $"{dir}({index}).cry";
+                                }
+
+                                (File.Create(name)).Dispose(); //Closes stream
+                                DirManager.EncryptFile = new FileInfo(name);
 
 
                                 while (!DM.isLoaded())
@@ -123,12 +128,12 @@ namespace cry_locker
                                 }
 
                                 Manifest man = DM.generateManifest();
-                                man.WriteToDisk(temp_dir, AES);
+                                man.WriteToDisk(AES);
 
-                                Console.Clear();
+                                /*Console.Clear();
                                 Console.WriteLine("Compiling...");
                                 DM.CompileFile();
-                                Console.ReadLine();
+                                Console.ReadLine();*/
 
 
                                 //Check for failed items
@@ -152,9 +157,9 @@ namespace cry_locker
                                     Console.Clear();
                                     string ms = "ms";
                                     string s = "s";
-                                    Console.WriteLine($"Encrypted {dataSizeConverter(DM.Root.size)} {dataSizePostFix(DM.Root.size)} in {Math.Round(DirManager.encryptionTime >= 1000 ? DirManager.encryptionTime / 1000: DirManager.encryptionTime)}{(DirManager.encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM.Root.size / (DirManager.encryptionTime / 1000))} {dataSizePostFix(DM.Root.size / (DirManager.encryptionTime / 1000))}/s)");
+                                    Console.WriteLine($"Encrypted {dataSizeConverter(DM.Root.size)} {dataSizePostFix(DM.Root.size)} in {Math.Round(DirManager.encryptionTime >= 1000 ? DirManager.encryptionTime / 1000 : DirManager.encryptionTime)}{(DirManager.encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM.Root.size / (DirManager.encryptionTime / 1000))} {dataSizePostFix(DM.Root.size / (DirManager.encryptionTime / 1000))}/s)");
                                 }
-
+                                GC.Collect();
                                 Console.WriteLine("Press any key to continue...");
                                 Console.ReadKey();
 
@@ -231,9 +236,27 @@ namespace cry_locker
                                 AES.Mode = CipherMode.CBC;
                                 AES.Padding = PaddingMode.PKCS7;
 
-                                //Manifest.LoadFromDisk(file, AES);
+                                //Setup decryption folder
+                                DirManager.key = AES;
+                                DirManager.EncryptFile = file;
+                                DirManager.DecryptFolder = Directory.CreateDirectory($"{file.FullName.Remove(file.FullName.Length - 4, 4)}_decrypted");
 
-                                DirManager.loadFile(file);
+                                DirManager.isDecrypted = false;
+                                (new Thread(DirManager.DecryptFiles)).Start();
+                                
+                                while (!DirManager.isDecrypted)
+                                {
+                                    Thread.Sleep(1000);
+                                    Console.Clear();
+                                    Console.WriteLine($"{getLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
+                                    if (DirManager.DecryptFailed)
+                                    {
+                                        Console.WriteLine("Decryption failed with reason:");
+                                        Console.WriteLine(DirManager.DecryptFailReason);
+                                        break;
+                                    }
+                                }
+                                //DirManager.loadFile(file);
 
                                 Console.WriteLine("Press any key to continue...");
                                 Console.ReadKey();
@@ -355,6 +378,22 @@ namespace cry_locker
                 //Bytes
                 return "B";
             }
+        }
+
+        /// <summary>
+        /// Scales a data transfer speed to seconds
+        /// </summary>
+        /// <returns></returns>
+        public static double dataSpeedScaling(double bytes, double milliseconds)
+        {
+            //If over a second
+            if(milliseconds >= 1000)
+            {
+                return bytes;
+            }
+
+            double scale = 1000 / milliseconds;
+            return bytes * scale;
         }
 
         /// <summary>
