@@ -299,6 +299,9 @@ namespace cry_locker
 
                         break;
                     #endregion
+                    case "test":
+
+                        break;
                     default:
                         Console.WriteLine($"Command \"{cmd}\" is unrecognized!");
                         break;

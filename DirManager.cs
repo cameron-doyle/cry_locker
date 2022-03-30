@@ -178,54 +178,45 @@ public class DirManager
 
 		foreach (var item in manifest)
 		{
-			using (FileStream fRead = File.OpenRead(locker.FullName))
+			using FileStream fRead = File.OpenRead(locker.FullName);
+			using BufferedStream bRead = new(fRead);
+
+			var dir = Directory.CreateDirectory($"{outputFolder.FullName}/{item.Path}");
+
+			using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
+			using BufferedStream bWrite = new(fWrite);
+
+			bRead.Seek(manifest.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+
+			int bl = 0;
+			int overflows = 0;
+
+			int maxBufferSize = (256 * 1024); //KB (max is 2GB)
+
+			if (item.ByteLength > maxBufferSize)
 			{
-				using BufferedStream bRead = new(fRead);
-
-				var dir = Directory.CreateDirectory($"{outputFolder.FullName}/{item.Path}");
-				using FileStream fWriter = File.Create($"{dir.FullName}/{item.Name}");
-
-				long sb = manifest.GetStartingByte(item.FileIndex);
-
-				fRead.Seek(sb, SeekOrigin.Begin);
-				BinaryReader br = new(fRead);
-
-				byte[] buffer;
-				int bl = 0;
-				int overflows = 0;
-				if (item.ByteLength > int.MaxValue)
-				{
-					double d = item.ByteLength / int.MaxValue;
-					overflows = (int)d;
-					bl = (int)(d - Math.Truncate(d));
-				}
-				else
-				{
-					bl = (int)item.ByteLength;
-				}
-
-				using (CryptoStream cs = new(fWriter, key.CreateDecryptor(), CryptoStreamMode.Write))
-				{
-
-					for (int i = 0; i <= overflows; i++)
-					{
-						int l = bl;
-						if (overflows > 0)
-							l = int.MaxValue;
-						else if (i == overflows)
-							l = bl;
-						buffer = new byte[l];
-						br.Read(buffer, 0, buffer.Length);
-						cs.Write(buffer, 0, buffer.Length);
-					}
-					Decrypted++;
-				}
-
-				//BinaryWriter bw = new(cs);
-				//bw.Write(buffer);
+				overflows = (int)item.ByteLength / maxBufferSize;
+				bl = (int)item.ByteLength - (overflows * maxBufferSize);
 			}
+			else bl = (int)item.ByteLength;
+
+			using CryptoStream cs = new(bWrite, key.CreateDecryptor(), CryptoStreamMode.Write);
+			for (int i = 0; i <= overflows; i++)
+			{
+				int toWrite = bl;
+
+				if (i < overflows)
+					toWrite = maxBufferSize;
+
+				byte[] buffer = new byte[toWrite];
+				bRead.Read(buffer, 0, buffer.Length);
+				cs.Write(buffer, 0, buffer.Length);
+			}
+			Decrypted++;
 		}
 		IsDecrypted = true;
+		GC.Collect();
+
 	}
 
 	/// <summary>
