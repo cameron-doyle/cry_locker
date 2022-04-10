@@ -76,13 +76,11 @@ try
     regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
     if (regmenu != null)
     {
-        Console.WriteLine("Setuping decrypt");
         regmenu.SetValue("", "Decrypt");
     }
     regcmd = Registry.ClassesRoot.CreateSubKey(command);
     if (regcmd != null)
     {
-        Console.WriteLine("Setuping decrypt cmd");
         regcmd.SetValue("", "cmd /c cry_locker -d \"%1\"");
     }
 }
@@ -111,7 +109,6 @@ try
 	using var envKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", true);
 	Contract.Assert(envKey != null, @"registry key is missing!");
 	FileInfo f = new FileInfo(loc);
-	Console.WriteLine($"{f.DirectoryName}");
 
 	//envKey.SetValue("cry_locker", $"{f.DirectoryName}");
 	string key = envKey.GetValue("Path").ToString();
@@ -126,5 +123,3 @@ catch (Exception)
 
 	throw;
 }
-Console.WriteLine("Setup complete3!");
-Console.ReadLine();

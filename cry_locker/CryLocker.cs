@@ -1,19 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Diagnostics;
-using System.IO;
-using System.Collections;
-using System.Security.AccessControl;
+﻿using System.Text;
 using System.Security.Cryptography;
-using System.Threading;
 using Konscious.Security.Cryptography;
-using System.Text.Json;
-using Microsoft.Win32;
 using System.Text.RegularExpressions;
-using System.Runtime.InteropServices;
 
 namespace cry_locker
 {
@@ -68,49 +56,6 @@ namespace cry_locker
                     if (t_argument != null)
                         path = $"{loc}/{t_argument}";
                 }
-
-
-
-                /*					if (cmd == "cd")
-                                    {
-                                        //Navigating
-                                        if (path != null)
-                                        {
-                                            DirectoryInfo test = new(path);
-                                            if (test.Exists)
-                                                loc = test.FullName;
-                                        }else Console.WriteLine("Syntax error! cd requires a folder to navigate to.");
-                                    }else
-
-                                    if (cmd == "list")
-                                    {
-                                        DirectoryInfo dir = new(loc);
-                                        foreach (var d in dir.GetDirectories())
-                                        {
-                                            Console.WriteLine(d.Name);
-                                        }
-
-                                        foreach (var f in dir.GetFiles())
-                                        {
-                                            Console.WriteLine(f.Name);
-                                        }
-                                    }else
-
-                                    if (cmd == "clear")
-                                    {
-                                        clear = true;
-                                    }else
-
-                                    if (cmd == "help")
-                                    {
-                                        Console.WriteLine("" +
-                                            "cd         navigate to directory.\n" +
-                                            $"ls/dir    lists content of current working directory.\n" +
-                                            $"clear     clears the terminal.\n" +
-                                            "-e/encrypt encrypts selected folder.\n" +
-                                            "-d/decrypt decrypts locker.\n" +
-                                            "-a/add     add a file/folder to an existing locker.");
-                                    }*/
 
                 switch (cmd)
                 {
@@ -226,7 +171,7 @@ namespace cry_locker
         /// </summary>
         /// <param name="size">The value in bytes</param>
         /// <returns></returns>
-        public static double dataSizeConverter(double bytes)
+        public static double DataSizeConverter(double bytes)
         {
             //{Math.Round(DM.Root.size > 1073741824 ? DM.Root.size / 1073741824 : DM.Root.size / 1048576, 2)} {(DM.Root.size > 1073741824 ? gb : mb)} in {Math.Round(DirManager.encryptionTime, 2)} seconds! ({Math.Round(((DM.Root.size / DirManager.encryptionTime) > 1073741824 ? DM.Root.size / 1073741824 : DM.Root.size / 1048576) / DirManager.encryptionTime)} {((DM.Root.size / DirManager.encryptionTime) > 1073741824 ? gb : mb)}/s)");
             if(bytes >= 1125899906842624)
@@ -377,12 +322,6 @@ namespace cry_locker
             }
         }*/
 
-/*        private static Config Setup()
-        {
-            return GetConfig();
-        }*/
-
-
         private static void Encrypt(string path, bool isFolder)
 		{
             DirectoryInfo? dir = null;
@@ -406,26 +345,73 @@ namespace cry_locker
                 Console.Clear();
 
                 string password = "";
-
-				bool badPassword = true;
+                bool badPassword = true;
 				while (badPassword)
 				{
-					Console.WriteLine("Enter password");
-					string? p1 = Console.ReadLine();
-					p1 = p1?.Trim();
-					Console.WriteLine("Confirm password");
-					string? p2 = Console.ReadLine();
-					p2 = p2?.Trim();
-					if (p1 != null && p2 != null && p1 == p2)
-					{
-                        //TODO change this
-                        password = "password";
-						badPassword = false;
+					Console.Write("Password:");
+					string p1 = "";
+
+                    ConsoleKey k;
+                    do
+                    {
+                        var keyInfo = Console.ReadKey(true);
+                        k = keyInfo.Key;
+
+                        if (k == ConsoleKey.Backspace && p1.Length > 0)
+                        {
+                            Console.Write("\b \b");
+                            p1 = p1[0..^1];
+                        }
+                        else if (!char.IsControl(keyInfo.KeyChar))
+                        {
+                            Console.Write("*");
+                            p1 += keyInfo.KeyChar;
+                        }
+                    } while (k != ConsoleKey.Enter);
+
+					p1 = p1.Trim();
+                    // Password Format 1 lower, upper, number, and symbol. Min 4 max 2046
+                    if (p1 != null && Regex.IsMatch(p1, @"^(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[^\w\d\s:])([^\s]){8,2048}$"))
+                    {
+                        Console.Clear();
+                        Console.Write("Confirm Password:");
+                        string? p2 = "";
+
+                        ConsoleKey k2;
+                        do
+                        {
+                            var keyInfo2 = Console.ReadKey(true);
+                            k2 = keyInfo2.Key;
+
+                            if (k2 == ConsoleKey.Backspace && p2.Length > 0)
+                            {
+                                Console.Write("\b \b");
+                                p2 = p2[0..^1];
+                            }
+                            else if (!char.IsControl(keyInfo2.KeyChar))
+                            {
+                                Console.Write("*");
+                                p2 += keyInfo2.KeyChar;
+                            }
+                        } while (k2 != ConsoleKey.Enter);
+
+                        p2 = p2?.Trim();
+                        if (p1 != null && p2 != null && p1 == p2)
+                        {
+                            //TODO change this
+                            password = p1;
+                            badPassword = false;
+                        }
+                        else
+                        {
+                            Console.Clear();
+                            Console.WriteLine("Passwords don't match, try again!\n");
+                        }
 					}
 					else
 					{
-						Console.Clear();
-						Console.WriteLine("Passwords don't match, try again!\n");
+                        Console.Clear();
+                        Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 8");
 					}
 				}
 
@@ -446,26 +432,6 @@ namespace cry_locker
                 argon = null;
                 pBytes = null;
                 GC.Collect();
-
-				/*bool badPassword = true;
-                while (badPassword)
-                {
-                    Console.WriteLine("Enter password");
-                    p1 = Console.ReadLine();
-                    p1 = p1.Trim();
-                    Console.WriteLine("Confirm password");
-                    string p2 = Console.ReadLine();
-                    p2 = p2.Trim();
-                    if (p1 == p2)
-                    {
-                        badPassword = false;
-                    }
-                    else
-                    {
-                        Console.Clear();
-                        Console.WriteLine("Passwords don't match, try again!\n");
-                    }
-                }*/
 
 				//Generate key
 				//AesCryptoServiceProvider AES = new();
@@ -537,7 +503,7 @@ namespace cry_locker
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-                    Console.WriteLine($"Attempted to encrypt {DM.GetFiles().Count} files, {dataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s), however {DM._failed.Count} failed!\nFailed to encrypted:\n[");
+                    Console.WriteLine($"Attempted to encrypt {DM.GetFiles().Count} files, {DataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s), however {DM._failed.Count} failed!\nFailed to encrypted:\n[");
                     //Console.WriteLine($"Encryption completed in {DirManager.encryptionTime}, with {DirManager.failed.Count} failures!\nFailed to encrypted:\n[");
                     foreach (FailedItem i in DM._failed)
                     {
@@ -551,7 +517,7 @@ namespace cry_locker
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-                    Console.WriteLine($"Encrypted {dataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({dataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s)");
+                    Console.WriteLine($"Encrypted {DataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s)");
                 }
                 GC.Collect();
                 Console.WriteLine("Press any key to continue...");
@@ -576,29 +542,28 @@ namespace cry_locker
                 if (file.Exists)
                 {
                     //Ask for password
+                    Console.Write("Password:");
                     string password = "";
 
-                    bool badPassword = true;
-                    while (badPassword)
+                    ConsoleKey k;
+                    do
                     {
-                        Console.WriteLine("Enter password");
-                        string? p1 = Console.ReadLine();
-                        p1 = p1?.Trim();
-                        Console.WriteLine("Confirm password");
-                        string? p2 = Console.ReadLine();
-                        p2 = p2?.Trim();
-                        if (p1 != null && p2 != null && p1 == p2)
+                        var keyInfo = Console.ReadKey(true);
+                        k = keyInfo.Key;
+
+                        if (k == ConsoleKey.Backspace && password.Length > 0)
                         {
-                            //TODO change this
-                            password = "password";
-                            badPassword = false;
+                            Console.Write("\b \b");
+                            password = password[0..^1];
                         }
-                        else
+                        else if (!char.IsControl(keyInfo.KeyChar))
                         {
-                            Console.Clear();
-                            Console.WriteLine("Passwords don't match, try again!\n");
+                            Console.Write("*");
+                            password += keyInfo.KeyChar;
                         }
-                    }
+                    } while (k != ConsoleKey.Enter);
+
+                    password = password.Trim();
 
                     Console.Clear();
                     Console.WriteLine("Generating key...");
@@ -627,29 +592,34 @@ namespace cry_locker
                     AES.Mode = CipherMode.CBC;
                     AES.Padding = PaddingMode.PKCS7;
 
-                    string name = Regex.Replace(file.FullName, "[.]cry_locker$", "", RegexOptions.IgnoreCase);
-                    var output = Directory.CreateDirectory($"{name}_decrypted");
+                    string name = Regex.Replace(file.FullName, "[.]cry_locker$", "_decrypted", RegexOptions.IgnoreCase);
+                    var output = Directory.CreateDirectory(name);
                     DirManager.SetLockerFile(file);
                     DirManager.SetDecryptFolder(output);
                     DirManager.SetKey(AES);
                     DirManager.IsDecrypted = false;
                     new Thread(DirManager.DecryptFiles).Start();
 
+                    Console.Clear();
+
+                    Console.CursorVisible = false;
                     while (!DirManager.IsDecrypted)
                     {
-                        Thread.Sleep(1000);
-                        Console.Clear();
-                        Console.WriteLine($"{GetLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
-                        if (DirManager.DecryptFailed)
+                        Console.SetCursorPosition(0, Console.CursorTop);
+                        Console.Write($"{GetLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
+                        Thread.Sleep(250);
+                        if (DirManager.DecryptFailed && DirManager.DecryptFailReason != null)
                         {
+                            Console.Clear();
                             Console.WriteLine("Decryption failed with reason:");
                             Console.WriteLine(DirManager.DecryptFailReason);
                             Console.WriteLine("Press any key to continue...");
+                            output.Delete(true);
                             Console.ReadKey();
                             break;
                         }
                     }
-
+                    Console.CursorVisible = true;
                     Console.Clear();
                     //OpenFolder(output.FullName);
 
@@ -697,21 +667,6 @@ namespace cry_locker
 
         }
 
-        /*  private static string FilterOutDir(string line, string path)
-          {
-              var en = Encoding.Default;
-              char[] chars = Encoding.Default.GetChars(Encoding.Default.GetBytes(line));
-
-              string final = "";
-
-              //Note we don't account for length to index conversion on i, because we have an extra character in the line as a seperater between path and cmd
-              for (int i = path.Length; i < chars.Length; i++)
-              {
-                  final += chars[i];
-              }
-              return final;
-          }*/
-
         /* private static Config GetConfig()
          {
              //string loc = System.Reflection.Assembly.GetExecutingAssembly().Location;
@@ -742,17 +697,4 @@ namespace cry_locker
              }
          }*/
     }
-
-   /* public class Config
-	{
-        public string DefaultPath { get; set; }
-        public int Difficulty { get; set; }
-        public string? DefaultSaveLocation { get; set; }
-        public Config(string DefaultPath, int Difficulty, string? DefaultSaveLocation = null)
-		{
-            this.DefaultPath = DefaultPath;
-            this.Difficulty = Difficulty;
-            this.DefaultSaveLocation = DefaultSaveLocation;
-		}
-	}*/
 }

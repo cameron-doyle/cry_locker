@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\Setup\\windows_setup.csproj",
+      "projectUniqueName": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj",
       "projectName": "windows_setup",
-      "projectPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\Setup\\windows_setup.csproj",
+      "projectPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj",
       "packagesPath": "C:\\Users\\Camer\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\Setup\\obj\\",
+      "outputPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Camer\\AppData\\Roaming\\NuGet\\NuGet.Config",

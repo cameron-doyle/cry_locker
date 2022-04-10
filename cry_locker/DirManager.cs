@@ -1,12 +1,7 @@
-﻿using System;
-using System.IO;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using System.Text;
 using System.Security.Cryptography;
-using System.Threading;
 using System.Diagnostics;
-using cry_locker;
 using System.Text.Json;
 
 public class DirManager
@@ -175,8 +170,8 @@ public class DirManager
 		
 		if(manifest == null)
 		{
-			Console.WriteLine("Cannot find manifest, locker is like corrupted...");
-			Console.ReadLine();
+			DecryptFailReason = "Failed to Decrypt! Check your password and make sure there's enough hard drive space!";
+			DecryptFailed = true;
 			return;
 		}
 
@@ -226,10 +221,10 @@ public class DirManager
 			}
 			catch (Exception e)
 			{
-				DecryptFailed = true;
 				DecryptFailReason = e.Message;
 				if (e.Message == "Padding is invalid and cannot be removed.")
 					DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
+				DecryptFailed = true;
 				break;
 			}
 			
@@ -537,40 +532,48 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	public static Manifest? LoadFromDisk(Aes key, FileInfo locker)
 	{
-		if (!locker.Exists)
-			throw new Exception($"\"{locker.FullName}\" does not exist!");
-
-		using (FileStream fs = File.OpenRead(locker.FullName))
+		try
 		{
-			using BufferedStream buff = new BufferedStream(fs);
-			using BinaryReader br = new BinaryReader(buff);
+			if (!locker.Exists)
+				throw new Exception($"\"{locker.FullName}\" does not exist!");
 
-			string pattern = "[manifest]";
-			byte[] bytes = new byte[pattern.Length];
-			for (long i = fs.Length - 1; i >= 0; i--)
+			using (FileStream fs = File.OpenRead(locker.FullName))
 			{
-				//Shift bytes
-				bytes = ShiftRight(bytes);
+				using BufferedStream buff = new BufferedStream(fs);
+				using BinaryReader br = new BinaryReader(buff);
 
-				buff.Seek(i, SeekOrigin.Begin);
-				bytes[0] = br.ReadByte();
-
-				//Check for header pattern
-				string s = Encoding.Default.GetString(bytes);
-				if (s.StartsWith(pattern))
+				string pattern = "[manifest]";
+				byte[] bytes = new byte[pattern.Length];
+				for (long i = fs.Length - 1; i >= 0; i--)
 				{
-					buff.Seek(i + pattern.Length, SeekOrigin.Begin);
+					//Shift bytes
+					bytes = ShiftRight(bytes);
 
-					using var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
+					buff.Seek(i, SeekOrigin.Begin);
+					bytes[0] = br.ReadByte();
 
-					StreamReader sr = new(cs);
-					string json_string = sr.ReadToEnd();
+					//Check for header pattern
+					string s = Encoding.Default.GetString(bytes);
+					if (s.StartsWith(pattern))
+					{
+						buff.Seek(i + pattern.Length, SeekOrigin.Begin);
 
-					return Deserialize(json_string);
+						using var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
+
+						StreamReader sr = new(cs);
+						string json_string = sr.ReadToEnd();
+
+						return Deserialize(json_string);
+					}
 				}
 			}
+			return null;
 		}
-		return null;
+		catch (Exception)
+		{
+			return null;
+		}
+		
 	}
 
 	private static byte[] ShiftLeft(byte[] input)

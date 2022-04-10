@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "oWQRrni4d2Kfmik1jLFDZFaD1xjrvdZxqiWVqSSvXTw7jJkDpVAE1Om0Y2PijM4Q79XgbtPfBhuHNkiuzLhuAQ==",
+  "dgSpecHash": "kyczf7cnFCNl/Q55WhBsG1FWSyFkPQFbIEDzvNdBv2WsLruOEjk5mEpzdWLcIx14XDq31jXmPTBQjtB3Q2d8Dw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker.csproj",
+  "projectFilePath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\cry_locker.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Camer\\.nuget\\packages\\konscious.security.cryptography.argon2\\1.2.1\\konscious.security.cryptography.argon2.1.2.1.nupkg.sha512",
     "C:\\Users\\Camer\\.nuget\\packages\\konscious.security.cryptography.blake2\\1.0.9\\konscious.security.cryptography.blake2.1.0.9.nupkg.sha512",

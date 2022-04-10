@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker.csproj": {}
+    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\cry_locker.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker.csproj": {
+    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\cry_locker.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker.csproj",
+        "projectUniqueName": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\cry_locker.csproj",
         "projectName": "cry_locker",
-        "projectPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker.csproj",
+        "projectPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\cry_locker.csproj",
         "packagesPath": "C:\\Users\\Camer\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\obj\\publish\\win-x64\\",
+        "outputPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\cry_locker\\obj\\publish\\win-x64\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Camer\\AppData\\Roaming\\NuGet\\NuGet.Config",
