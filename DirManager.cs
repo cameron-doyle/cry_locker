@@ -15,7 +15,7 @@ public class DirManager
 	private bool _isEncrypted;
 	private static FileInfo? LockerFile;
 	private static DirectoryInfo? DecryptFolder;
-	private static AesCryptoServiceProvider? Key;
+	private static Aes? Key;
 
 
 	public DirManager(DirectoryInfo root)
@@ -57,14 +57,14 @@ public class DirManager
 		return _root.GetFiles();
 	}
 
-	public static AesCryptoServiceProvider GetKey()
+	public static Aes GetKey()
 	{
 		if (Key == null)
 			throw new NullReferenceException("Key was never set!");
 		return Key;
 	}
 
-	public static void SetKey(AesCryptoServiceProvider key)
+	public static void SetKey(Aes key)
 	{
 		Key = key;
 	}
@@ -108,9 +108,11 @@ public class DirManager
 
 		if(files.Count > int.MaxValue)
 		{
-			_failed.Add(new FailedItem(files[0], new Exception($"Maximum number of files exceeded! Max files {int.MaxValue}")));
-			_isEncrypted = true;
-			return;
+			var e = new Exception($"Maximum number of files exceeded! Max files {int.MaxValue}");
+			_failed.Add(new FailedItem(files[0],e));
+			throw e;
+			//_isEncrypted = true;
+			//return;
 		}
 
 		//Time encryption
@@ -123,8 +125,8 @@ public class DirManager
 			if (f._info.Length <= long.MaxValue)
 			{
 				f._fileIndex = i;
-				f.Encrypt();
-				i++;
+				if(f.Encrypt())
+					i++;
 			}
 			else
 			{
@@ -144,7 +146,7 @@ public class DirManager
 		}
 
 		//Generate manifest (requires hashes) and write
-		Manifest man = GenerateManifest();
+		Manifest man = GenerateManifest(); //TODO remove failed items before saving manifest
 		man.WriteToDisk();
 	}
 
@@ -152,7 +154,7 @@ public class DirManager
 	public static int ToDecrypt;
 	public static bool IsDecrypted;
 	public static bool DecryptFailed;
-	public static string DecryptFailReason;
+	public static string? DecryptFailReason;
 	public static void DecryptFiles()
 	{
 		IsDecrypted = false;
@@ -169,8 +171,15 @@ public class DirManager
 		if (!outputFolder.Exists)
 			throw new Exception($"\"{outputFolder.FullName}\" does not exist!");
 
-		Manifest manifest = Manifest.LoadFromDisk(key, locker);
+		Manifest? manifest = Manifest.LoadFromDisk(key, locker);
 		
+		if(manifest == null)
+		{
+			Console.WriteLine("Cannot find manifest, locker is like corrupted...");
+			Console.ReadLine();
+			return;
+		}
+
 		ToDecrypt = manifest.GetItems().Count;
 
 		//Decrypt files
@@ -178,40 +187,52 @@ public class DirManager
 
 		foreach (var item in manifest)
 		{
-			using FileStream fRead = File.OpenRead(locker.FullName);
-			using BufferedStream bRead = new(fRead);
-
-			var dir = Directory.CreateDirectory($"{outputFolder.FullName}/{item.Path}");
-
-			using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
-			using BufferedStream bWrite = new(fWrite);
-
-			bRead.Seek(manifest.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
-
-			int bl = 0;
-			int overflows = 0;
-
-			int maxBufferSize = (256 * 1024); //KB (max is 2GB)
-
-			if (item.ByteLength > maxBufferSize)
+			try
 			{
-				overflows = (int)item.ByteLength / maxBufferSize;
-				bl = (int)item.ByteLength - (overflows * maxBufferSize);
-			}
-			else bl = (int)item.ByteLength;
+				using FileStream fRead = File.OpenRead(locker.FullName);
+				using BufferedStream bRead = new(fRead);
 
-			using CryptoStream cs = new(bWrite, key.CreateDecryptor(), CryptoStreamMode.Write);
-			for (int i = 0; i <= overflows; i++)
+				var dir = Directory.CreateDirectory($"{outputFolder.FullName}/{item.Path}");
+
+				using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
+				using BufferedStream bWrite = new(fWrite);
+
+				bRead.Seek(manifest.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+
+				int bl = 0;
+				int overflows = 0;
+
+				int maxBufferSize = (256 * 1024); //KB (max is 2GB)
+
+				if (item.ByteLength > maxBufferSize)
+				{
+					overflows = (int)item.ByteLength / maxBufferSize;
+					bl = (int)item.ByteLength - (overflows * maxBufferSize);
+				}
+				else bl = (int)item.ByteLength;
+
+				using CryptoStream cs = new(bWrite, key.CreateDecryptor(), CryptoStreamMode.Write);
+				for (int i = 0; i <= overflows; i++)
+				{
+					int toWrite = bl;
+
+					if (i < overflows)
+						toWrite = maxBufferSize;
+
+					byte[] buffer = new byte[toWrite];
+					bRead.Read(buffer, 0, buffer.Length);
+					cs.Write(buffer, 0, buffer.Length);
+				}
+			}
+			catch (Exception e)
 			{
-				int toWrite = bl;
-
-				if (i < overflows)
-					toWrite = maxBufferSize;
-
-				byte[] buffer = new byte[toWrite];
-				bRead.Read(buffer, 0, buffer.Length);
-				cs.Write(buffer, 0, buffer.Length);
+				DecryptFailed = true;
+				DecryptFailReason = e.Message;
+				if (e.Message == "Padding is invalid and cannot be removed.")
+					DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
+				break;
 			}
+			
 			Decrypted++;
 		}
 		IsDecrypted = true;
@@ -226,7 +247,13 @@ public class DirManager
 	private Manifest GenerateManifest()
 	{
 		List<OurFile> files = GetFiles();
-		Manifest m = new Manifest(this);
+
+		foreach (var item in _failed)
+		{
+			files.Remove(item._file);
+		}
+
+		Manifest m = new(this);
 		foreach (OurFile f in files)
 		{
 			if (!f._isComputed)
@@ -357,7 +384,7 @@ public class OurFile
 		ThreadPool.QueueUserWorkItem(Hash);
 	}
 
-	public string getRelativePath()
+	public string GetRelativePath()
 	{
 		return $"{_parent.GetLocalPath()}\\{_info.Name}";
 	}
@@ -375,7 +402,7 @@ public class OurFile
 		_isComputed = true;
 	}
 
-	public void Encrypt()
+	public bool Encrypt()
 	{
 		var locker = DirManager.GetLockerFile().FullName;
 		var encryptor = DirManager.GetKey().CreateEncryptor();
@@ -404,8 +431,10 @@ public class OurFile
 		catch (Exception e)
 		{
 			manager._failed.Add(new FailedItem(this, e));
+			return false;
 		}
 		GC.Collect();
+		return true;
 	}
 
 }
@@ -473,29 +502,40 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	public void WriteToDisk()
 	{
-		var encryptor = DirManager.GetKey().CreateEncryptor();
 		var locker = DirManager.GetLockerFile().FullName;
-
-		using (FileStream fs = File.OpenWrite(locker))
+		try
 		{
-			fs.Seek(0, SeekOrigin.End);
-			StreamWriter sw = new StreamWriter(fs);
-			sw.Write("[manifest]");
-			sw.Flush(); //Need to flush before seeking to make sure the header is writen
-			fs.Seek(0, SeekOrigin.End);
+			var encryptor = DirManager.GetKey().CreateEncryptor();
 
-			using (CryptoStream cs = new CryptoStream(fs, encryptor, CryptoStreamMode.Write))
+			using (FileStream fs = File.OpenWrite(locker))
 			{
-				using (StreamWriter csWriter = new StreamWriter(cs))
-				{
-					csWriter.Write(Serialize());
-				}
-			}
+				fs.Seek(0, SeekOrigin.End);
+				StreamWriter sw = new StreamWriter(fs);
+				sw.Write("[manifest]");
+				sw.Flush(); //Need to flush before seeking to make sure the header is writen
+				fs.Seek(0, SeekOrigin.End);
 
+				using (CryptoStream cs = new CryptoStream(fs, encryptor, CryptoStreamMode.Write))
+				{
+					using (StreamWriter csWriter = new StreamWriter(cs))
+					{
+						csWriter.Write(Serialize());
+					}
+				}
+
+			}
 		}
+		catch (Exception e)
+		{
+			File.Delete(locker); //If manifest is missing, the locker is corrypt, delete it.
+			Console.WriteLine("Failed to save locker, reason:");
+			Console.WriteLine(e.Message);
+			throw;
+		}
+
 	}
 
-	public static Manifest? LoadFromDisk(AesCryptoServiceProvider key, FileInfo locker)
+	public static Manifest? LoadFromDisk(Aes key, FileInfo locker)
 	{
 		if (!locker.Exists)
 			throw new Exception($"\"{locker.FullName}\" does not exist!");
@@ -648,7 +688,7 @@ public class ManifestItem : IComparable
 	public int CompareTo(object? obj)
 	{
 		/*System.ArgumentException: 'Object must be of type Int32.'*/
-		var t = (ManifestItem)obj;
+		var t = (ManifestItem?)obj;
 		/*if(t == null)
 		{
 			throw new Exception("Manifest item cannot be compared to null");

@@ -39,6 +39,12 @@
       "frameworks": {
         "net6.0": {
           "targetAlias": "net6.0",
+          "dependencies": {
+            "Konscious.Security.Cryptography.Argon2": {
+              "target": "Package",
+              "version": "[1.2.1, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
