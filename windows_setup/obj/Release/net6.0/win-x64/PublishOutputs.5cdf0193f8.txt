@@ -1,0 +1,2 @@
+C:\Users\Camer\Documents\VSProjects\cry_locker\release\Setup.pdb
+C:\Users\Camer\Documents\VSProjects\cry_locker\release\Setup.exe

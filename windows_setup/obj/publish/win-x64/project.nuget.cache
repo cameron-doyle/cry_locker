@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "dtHscp6gfCQgDSOdiw/IuMyQEc25ct9lb42txjH60OcOR9ncDp4wSP0KE8WG1gwZV6OrD2AW7jQ/wZUUiMucKQ==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Camer\\Documents\\VSProjects\\Setup\\Setup.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\6.0.3\\microsoft.netcore.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\6.0.3\\microsoft.windowsdesktop.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\6.0.3\\microsoft.aspnetcore.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.netcore.app.crossgen2.win-x64\\6.0.3\\microsoft.netcore.app.crossgen2.win-x64.6.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
