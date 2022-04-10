@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <Configurations>Debug;Release;x64(release)</Configurations>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
+    <EnforceCodeStyleInBuild>False</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+	  <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+		<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+		<PlatformTarget>x64</PlatformTarget>
+	</PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.2.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj",
+        "projectName": "windows_setup",
+        "projectPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj",
+        "packagesPath": "C:\\Users\\Camer\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Camer\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net6.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net6.0": {
+            "targetAlias": "net6.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net6.0": {
+          "targetAlias": "net6.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "c:\\program files\\dotnet\\sdk\\6.0.201\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

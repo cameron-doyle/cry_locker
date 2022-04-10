@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>cry_locker</id>
+    <version>1.0.0</version>
+    <authors>cry_locker</authors>
+    <description>Package Description</description>
+    <dependencies>
+      <group targetFramework="net6.0">
+        <dependency id="Konscious.Security.Cryptography.Argon2" version="1.2.1" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="C:\Users\Camer\Documents\VSProjects\cry_locker\bin\x64\Debug\net6.0\cry_locker.runtimeconfig.json" target="lib\net6.0\cry_locker.runtimeconfig.json" />
+    <file src="C:\Users\Camer\Documents\VSProjects\cry_locker\bin\x64\Debug\net6.0\cry_locker.dll" target="lib\net6.0\cry_locker.dll" />
+  </files>
+</package>

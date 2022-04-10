@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "vUQYffXB+juUrG4SJGXw/61zr9+lhZ/K6AQBEwM8DnA9n3ITpnkDgA+sOYRTp9y1ZG+q91JAx/vRnwGvRsvqgQ==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Camer\\Documents\\VSProjects\\cry_locker\\windows_setup\\windows_setup.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\6.0.3\\microsoft.netcore.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\6.0.3\\microsoft.windowsdesktop.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\6.0.3\\microsoft.aspnetcore.app.runtime.win-x64.6.0.3.nupkg.sha512",
+    "C:\\Users\\Camer\\.nuget\\packages\\microsoft.netcore.app.crossgen2.win-x64\\6.0.3\\microsoft.netcore.app.crossgen2.win-x64.6.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
