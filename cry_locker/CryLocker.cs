@@ -326,9 +326,9 @@ namespace cry_locker
 		{
             byte[]? pBytes = Encoding.ASCII.GetBytes(password);
             Argon2id? argon = new(pBytes);
-            argon.DegreeOfParallelism = (int)hc.DegreeOfParallelism;
-            argon.MemorySize = (int)hc.MemorySize;
-            argon.Iterations = (int)hc.Iterations;
+            argon.DegreeOfParallelism = hc.DegreeOfParallelism;
+            argon.MemorySize = hc.MemorySize;
+            argon.Iterations = hc.Iterations;
             argon.Salt = hc.Salt;
 
             var key = argon.GetBytes(32);
@@ -383,88 +383,95 @@ namespace cry_locker
                 Console.Clear();
 
                 string password = "password";
-                /*bool badPassword = true;
+				/*bool badPassword = true;
 				while (badPassword)
 				{
 					Console.Write("Password:");
 					string p1 = "";
 
-                    ConsoleKey k;
-                    do
-                    {
-                        var keyInfo = Console.ReadKey(true);
-                        k = keyInfo.Key;
+					ConsoleKey k;
+					do
+					{
+						var keyInfo = Console.ReadKey(true);
+						k = keyInfo.Key;
 
-                        if (k == ConsoleKey.Backspace && p1.Length > 0)
-                        {
-                            Console.Write("\b \b");
-                            p1 = p1[0..^1];
-                        }
-                        else if (!char.IsControl(keyInfo.KeyChar))
-                        {
-                            Console.Write("*");
-                            p1 += keyInfo.KeyChar;
-                        }
-                    } while (k != ConsoleKey.Enter);
+						if (k == ConsoleKey.Backspace && p1.Length > 0)
+						{
+							Console.Write("\b \b");
+							p1 = p1[0..^1];
+						}
+						else if (!char.IsControl(keyInfo.KeyChar))
+						{
+							Console.Write("*");
+							p1 += keyInfo.KeyChar;
+						}
+					} while (k != ConsoleKey.Enter);
 
 					p1 = p1.Trim();
-                    // Password Format 1 lower, upper, number, and symbol. Min 4 max 2046
-                    if (p1 != null && Regex.IsMatch(p1, @"^(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[^\w\d\s:])([^\s]){8,2048}$"))
-                    {
-                        Console.Clear();
-                        Console.Write("Confirm Password:");
-                        string? p2 = "";
+					// Password Format 1 lower, upper, number, and symbol. Min 4 max 2046
+					if (p1 != null && Regex.IsMatch(p1, @"^(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[^\w\d\s:])([^\s]){8,2048}$"))
+					{
+						Console.Clear();
+						Console.Write("Confirm Password:");
+						string? p2 = "";
 
-                        ConsoleKey k2;
-                        do
-                        {
-                            var keyInfo2 = Console.ReadKey(true);
-                            k2 = keyInfo2.Key;
+						ConsoleKey k2;
+						do
+						{
+							var keyInfo2 = Console.ReadKey(true);
+							k2 = keyInfo2.Key;
 
-                            if (k2 == ConsoleKey.Backspace && p2.Length > 0)
-                            {
-                                Console.Write("\b \b");
-                                p2 = p2[0..^1];
-                            }
-                            else if (!char.IsControl(keyInfo2.KeyChar))
-                            {
-                                Console.Write("*");
-                                p2 += keyInfo2.KeyChar;
-                            }
-                        } while (k2 != ConsoleKey.Enter);
+							if (k2 == ConsoleKey.Backspace && p2.Length > 0)
+							{
+								Console.Write("\b \b");
+								p2 = p2[0..^1];
+							}
+							else if (!char.IsControl(keyInfo2.KeyChar))
+							{
+								Console.Write("*");
+								p2 += keyInfo2.KeyChar;
+							}
+						} while (k2 != ConsoleKey.Enter);
 
-                        p2 = p2?.Trim();
-                        if (p1 != null && p2 != null && p1 == p2)
-                        {
-                            //TODO change this
-                            password = p1;
-                            badPassword = false;
-                        }
-                        else
-                        {
-                            Console.Clear();
-                            Console.WriteLine("Passwords don't match, try again!\n");
-                        }
+						p2 = p2?.Trim();
+						if (p1 != null && p2 != null && p1 == p2)
+						{
+							//TODO change this
+							password = p1;
+							badPassword = false;
+						}
+						else
+						{
+							Console.Clear();
+							Console.WriteLine("Passwords don't match, try again!\n");
+						}
 					}
 					else
 					{
-                        Console.Clear();
-                        Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 8");
+						Console.Clear();
+						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 8");
 					}
 				}*/
 
-                Console.Clear();
+				Console.Clear();
                 Console.WriteLine("Generating key...");
 
                 //Setup locker
                 Locker locker = new();
 
                 //Setup config
-                HashConfig hc = new(/*GenerateRandomBytes()*/);
+                HashConfig hc = new(GenerateRandomBytes());
+                string validation = "";
+				foreach (var item in hc.Salt)
+				{
+                    validation += $"{item.ToString()}-";
+				}
+
+                //HashConfig hc = new();
                 locker.LockerConfig = hc;
                 string hcString = hc.Serialize();
                 HashConfig ssss = HashConfig.Deserialize(hcString);
-                
+
                 locker.GenerateLocker(dir.FullName);
                 locker.Key = GenerateKey(password, hc);
 
@@ -479,7 +486,8 @@ namespace cry_locker
                 }
 
                 //new Thread(DM.EncryptFiles(locker)).Start();
-                DM.EncryptFiles(locker);
+                //DM.EncryptFiles(locker);
+                new Thread(() => DM.EncryptFiles(locker)).Start();
 
                 //Wait for encryption
                 Console.Clear();
@@ -582,10 +590,16 @@ namespace cry_locker
                     DirManager.IsDecrypted = false;
                     //new Thread(DirManager.DecryptFiles).Start();
 
-                    var outputDir = Directory.CreateDirectory(name);
-                    Locker locker = new(file, new(), GenerateKey(password, new()));
+
+                    //Setup locker
+                    Locker locker = new(file);
+                    locker.LoadConfig();
+                    locker.Key = GenerateKey(password, locker.LockerConfig);
                     locker.LoadManifest();
-                    DirManager.DecryptFiles(locker, outputDir);
+
+                    //Setup output dir and start decrypt
+                    var outputDir = Directory.CreateDirectory(name);
+                    new Thread(() => DirManager.DecryptFiles(locker, outputDir)).Start();
 
                     Console.Clear();
 

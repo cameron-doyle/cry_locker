@@ -571,12 +571,14 @@ public class Manifest : IEnumerable<ManifestItem>
 			}
 			return null;
 		}
-		catch (Exception)
+		catch (Exception e)
 		{
+			//throw e;
 			return null;
 		}
 		
 	}
+
 
 	private static byte[] ShiftLeft(byte[] input)
 	{
@@ -602,14 +604,17 @@ public class Manifest : IEnumerable<ManifestItem>
 	/// Gets the starting byte for a given file
 	/// </summary>
 	/// <returns></returns>
+	private int offset = 0;
 	public long GetStartingByte(int index)
 	{
+		if (index == 0 && _items[0].StartingByte > 0)
+			offset = (int)_items[0].StartingByte;
 		long byteLocation = 0;
 		for (int i = 0; i < index; i++)
 		{
 			byteLocation += _items[i].ByteLength;
 		}
-		return byteLocation;
+		return byteLocation + offset;
 	}
 
 	public void Add(ManifestItem item)
@@ -734,13 +739,21 @@ public class Locker
 
 		try
 		{
-			LockerFile = new FileInfo(name);
-			LockerFile.Create().Dispose();
+			//LockerFile = new FileInfo(name);
+			string obj = Serialize();
+			using (var fs = File.Create(name))
+			{
+				using(StreamWriter sw = new StreamWriter(fs))
+				{
+					sw.Write($"[Config:{obj}]");
+				}
+			}
 		}
 		catch (Exception e)
 		{
 			throw e;
 		}
+		LockerFile = new FileInfo(name);
 	}
 
 	public void Delete()
@@ -777,9 +790,54 @@ public class Locker
 		return LockerManifest;
 	}
 
-	public HashConfig LoadHashConfig()
+	public HashConfig? LoadConfig()
 	{
-		
+		//TODO GET THE CONFIG
+		if (LockerFile == null)
+		{
+			throw new NullReferenceException("LockerFile cannot be null when loading config");
+		}
+		try
+		{
+			using (FileStream fs = File.OpenRead(LockerFile.FullName))
+			{
+				using BinaryReader br = new BinaryReader(fs);
+
+				//Define header pattern
+				string pattern = "[Config:";
+
+				//Read from index 0 (Config is assumed to start at index 0)
+				byte[] bytes = br.ReadBytes(pattern.Length);
+
+				//Check for header pattern
+				string s = Encoding.Default.GetString(bytes);
+				if (s.StartsWith(pattern))
+				{
+					string result = "";
+					for (int i = pattern.Length; i < 2000; i++)
+					{
+						fs.Seek(i, SeekOrigin.Begin);
+						char b = br.ReadChar();
+						if (b == 93) // 93 = 5d (] in hex)
+						{
+							LockerConfig = HashConfig.Deserialize(result);
+							return LockerConfig;
+						}
+						else result += b;
+					}
+				}
+				else
+				{
+					//Legacy locker, use defaults
+					LockerConfig = new HashConfig();
+					return LockerConfig;
+				}
+			}
+		}
+		catch (Exception)
+		{
+			return null;
+		}
 		return null;
 	}
 
@@ -801,6 +859,7 @@ public class Locker
 		}
 		return newItems;
 	}
+
 }
 
 public class HashConfig
@@ -810,18 +869,21 @@ public class HashConfig
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
 
-	public HashConfig(byte[] salt = null, int degreeOfParallelism = -1, int memorySize = -1, int iterations = -1)
+	public HashConfig(byte[] salt = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
-		Salt = (salt == null) ? Encoding.ASCII.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
-		DegreeOfParallelism = (degreeOfParallelism <= 0) ? 16:(int)degreeOfParallelism;
-		MemorySize = (memorySize <= 0) ? 8192:(int)memorySize;
-		Iterations = (iterations <= 0) ? 40:(int)iterations;
+		//Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
+		//Somehow randomGen salt is getting corrpted somewhere along the chain
+		var d = Encoding.UTF8;
+		Salt = RandomNumberGenerator.GetBytes(32);
+		DegreeOfParallelism = degreeOfParallelism;
+		MemorySize = memorySize;
+		Iterations = iterations;
 	}
 
 	public string Serialize()
 	{
 		string js = JsonSerializer.Serialize(this);
-		byte[] bytes = Encoding.UTF8.GetBytes(js);
+		byte[] bytes = Encoding.Default.GetBytes(js);
 		string hex = Convert.ToHexString(bytes).ToLower();
 		return hex;
 	}
