@@ -8,16 +8,16 @@ public class DirManager
 {
 	public Dir _root { get; private set; }
 	private bool _isEncrypted;
-	private static FileInfo? LockerFile;
+	//private static Locker? LockerFile;
 	private static DirectoryInfo? DecryptFolder;
-	private static Aes? Key;
+	//private static Aes? Key;
 
 
 	public DirManager(DirectoryInfo root)
 	{
 		DecryptFolder = null;
-		Key = null;
-		LockerFile = null;
+/*		Key = null;
+		LockerFile = null;*/
 		_root = new Dir(this, root);
 	}
 /*	public DirManager(string path)
@@ -52,7 +52,7 @@ public class DirManager
 		return _root.GetFiles();
 	}
 
-	public static Aes GetKey()
+/*	public static Aes GetKey()
 	{
 		if (Key == null)
 			throw new NullReferenceException("Key was never set!");
@@ -62,20 +62,20 @@ public class DirManager
 	public static void SetKey(Aes key)
 	{
 		Key = key;
-	}
+	}*/
 
-	public static FileInfo GetLockerFile()
+/*	public static FileInfo GetLockerFile()
 	{
 		if (LockerFile == null)
 			throw new NullReferenceException("_lockerFile was never set!");
 		return LockerFile;
-	}
-	public static void SetLockerFile(FileInfo locker)
+	}*/
+/*	public static void SetLockerFile(FileInfo locker)
 	{
 		if (!locker.Exists)
 			throw new Exception($"{locker.FullName} does not exist!");
 		LockerFile = locker;
-	}
+	}*/
 	public static DirectoryInfo GetDecryptFolder()
 	{
 		if (DecryptFolder == null)
@@ -93,7 +93,7 @@ public class DirManager
 	public int _encryptCount = 0;
 	public double _encryptionTime { get; private set; }
 	public List<FailedItem> _failed = new List<FailedItem>();
-	public void EncryptFiles()
+	public void EncryptFiles(Locker locker)
 	{
 		//Reset vars
 		_encryptCount = 0;
@@ -120,7 +120,7 @@ public class DirManager
 			if (f._info.Length <= long.MaxValue)
 			{
 				f._fileIndex = i;
-				if(f.Encrypt())
+				if(f.Encrypt(locker))
 					i++;
 			}
 			else
@@ -141,8 +141,8 @@ public class DirManager
 		}
 
 		//Generate manifest (requires hashes) and write
-		Manifest man = GenerateManifest(); //TODO remove failed items before saving manifest
-		man.WriteToDisk();
+		//Manifest man = GenerateManifest(); //TODO remove failed items before saving manifest
+		locker.LockerManifest = GenerateManifest();
 	}
 
 	public static int Decrypted;
@@ -150,49 +150,50 @@ public class DirManager
 	public static bool IsDecrypted;
 	public static bool DecryptFailed;
 	public static string? DecryptFailReason;
-	public static void DecryptFiles()
+	public static void DecryptFiles(Locker locker, DirectoryInfo outputDir)
 	{
 		IsDecrypted = false;
 		Decrypted = 0;
 		DecryptFailed = false;
 		DecryptFailReason = "";
 
-		var locker = GetLockerFile();
-		var outputFolder = GetDecryptFolder();
-		var key = GetKey();
+		//var locker = GetLockerFile();
+		//var outputFolder = GetDecryptFolder();
+		//var key = GetKey();
 
-		if (!locker.Exists)
-			throw new Exception($"\"{locker.FullName}\" does not exist!");
-		if (!outputFolder.Exists)
-			throw new Exception($"\"{outputFolder.FullName}\" does not exist!");
+		if (!outputDir.Exists)
+			throw new Exception($"\"{outputDir.FullName}\" does not exist!");
 
-		Manifest? manifest = Manifest.LoadFromDisk(key, locker);
+		//Manifest? manifest = Manifest.LoadFromDisk(locker.LockerFile, );
 		
-		if(manifest == null)
+		
+/*		if(manifest == null)
 		{
 			DecryptFailReason = "Failed to Decrypt! Check your password and make sure there's enough hard drive space!";
 			DecryptFailed = true;
 			return;
-		}
+		}*/
 
-		ToDecrypt = manifest.GetItems().Count;
+		ToDecrypt = locker.LockerManifest.GetItems().Count;
+
+		var man = locker.LoadManifest();
 
 		//Decrypt files
 		//TODO make manifest ienumerable
 
-		foreach (var item in manifest)
+		foreach (var item in man)
 		{
 			try
 			{
-				using FileStream fRead = File.OpenRead(locker.FullName);
+				using FileStream fRead = File.OpenRead(locker.GetPath());
 				using BufferedStream bRead = new(fRead);
 
-				var dir = Directory.CreateDirectory($"{outputFolder.FullName}/{item.Path}");
+				var dir = Directory.CreateDirectory($"{outputDir.FullName}/{item.Path}");
 
 				using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
 				using BufferedStream bWrite = new(fWrite);
 
-				bRead.Seek(manifest.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+				bRead.Seek(man.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
 
 				int bl = 0;
 				int overflows = 0;
@@ -206,7 +207,7 @@ public class DirManager
 				}
 				else bl = (int)item.ByteLength;
 
-				using CryptoStream cs = new(bWrite, key.CreateDecryptor(), CryptoStreamMode.Write);
+				using CryptoStream cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write);
 				for (int i = 0; i <= overflows; i++)
 				{
 					int toWrite = bl;
@@ -255,7 +256,7 @@ public class DirManager
 			{
 				throw new Exception("All file hashes must be computed before generating manifest!");
 			}
-			m.Add(new ManifestItem(f._uuid, f._path, f._hash, f._name, f._byteLength, f._fileIndex));
+			m.Add(new ManifestItem(f._uuid, f._path, f._hash, f._name, f._startingByte, f._byteLength, f._fileIndex));
 		}
 
 		return m;
@@ -356,7 +357,8 @@ public class OurFile
 	private Dir _parent;
 	public string? _hash { get; private set; }
 	//public static long rootByte { get; private set; }
-	public uint _byteLength { get; private set; }
+	public long _byteLength { get; private set; }
+	public long _startingByte { get; private set; }
 	/// <summary>
 	/// fileIndex is the index or order that the file was written into the locker (for example, the second file will be index 1).
 	/// This information is vital for calculating where the starting byte is for a particular file
@@ -397,29 +399,31 @@ public class OurFile
 		_isComputed = true;
 	}
 
-	public bool Encrypt()
+	public bool Encrypt(Locker locker)
 	{
-		var locker = DirManager.GetLockerFile().FullName;
-		var encryptor = DirManager.GetKey().CreateEncryptor();
+		//var locker = DirManager.GetLockerFile().FullName;
+		//var encryptor = DirManager.GetKey().CreateEncryptor();
 		var manager = _parent._manager;
 		
 		try
 		{
+			_startingByte = new FileInfo(locker.LockerFile.FullName).Length;
 			using (FileStream fileRead = _info.OpenRead())
 			{
 				long startingLength;
-				using (FileStream fileWrite = File.OpenWrite(locker))
+				using (FileStream fileWrite = File.OpenWrite(locker.GetPath()))
 				{
 					startingLength = fileWrite.Length;
 					
 					using BufferedStream bRead = new(fileRead);
 					using BufferedStream bWrite = new(fileWrite);
-					using CryptoStream cs = new(bWrite, encryptor, CryptoStreamMode.Write);
+					using CryptoStream cs = new(bWrite, locker.Key.CreateEncryptor(), CryptoStreamMode.Write);
 
 					bWrite.Seek(0, SeekOrigin.End);
 					bRead.CopyTo(cs);
 				}
-				_byteLength = (uint)(new FileInfo(locker).Length - startingLength);
+				//Get a new fileinfo and check the length
+				_byteLength = (uint)(new FileInfo(locker.LockerFile.FullName).Length - startingLength);
 			}
 			manager._encryptCount++;
 		}
@@ -495,14 +499,11 @@ public class Manifest : IEnumerable<ManifestItem>
 		return _items;
 	}
 
-	public void WriteToDisk()
+	public void WriteToDisk(FileInfo file, Aes key)
 	{
-		var locker = DirManager.GetLockerFile().FullName;
 		try
 		{
-			var encryptor = DirManager.GetKey().CreateEncryptor();
-
-			using (FileStream fs = File.OpenWrite(locker))
+			using (FileStream fs = File.OpenWrite(file.FullName))
 			{
 				fs.Seek(0, SeekOrigin.End);
 				StreamWriter sw = new StreamWriter(fs);
@@ -510,7 +511,7 @@ public class Manifest : IEnumerable<ManifestItem>
 				sw.Flush(); //Need to flush before seeking to make sure the header is writen
 				fs.Seek(0, SeekOrigin.End);
 
-				using (CryptoStream cs = new CryptoStream(fs, encryptor, CryptoStreamMode.Write))
+				using (CryptoStream cs = new CryptoStream(fs, key.CreateEncryptor(), CryptoStreamMode.Write))
 				{
 					using (StreamWriter csWriter = new StreamWriter(cs))
 					{
@@ -522,7 +523,8 @@ public class Manifest : IEnumerable<ManifestItem>
 		}
 		catch (Exception e)
 		{
-			File.Delete(locker); //If manifest is missing, the locker is corrypt, delete it.
+			//File.Delete(locker); //If manifest is missing, the locker is corrypt, delete it.
+			file.Delete();
 			Console.WriteLine("Failed to save locker, reason:");
 			Console.WriteLine(e.Message);
 			throw;
@@ -530,14 +532,14 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	}
 
-	public static Manifest? LoadFromDisk(Aes key, FileInfo locker)
+	public static Manifest? LoadFromDisk(FileInfo file, Aes key)
 	{
 		try
 		{
-			if (!locker.Exists)
-				throw new Exception($"\"{locker.FullName}\" does not exist!");
+			if (!file.Exists)
+				throw new Exception($"\"{file.FullName}\" does not exist!");
 
-			using (FileStream fs = File.OpenRead(locker.FullName))
+			using (FileStream fs = File.OpenRead(file.FullName))
 			{
 				using BufferedStream buff = new BufferedStream(fs);
 				using BinaryReader br = new BinaryReader(buff);
@@ -675,15 +677,17 @@ public class ManifestItem : IComparable
 	public string Path { get; set; }
 	public string Hash { get; set; }
 	public string Name { get; set; }
+	public long StartingByte { get; set; }
 	public long ByteLength { get; set; }
 	public int FileIndex { get; set; }
 
-	public ManifestItem(string uuid, string path, string hash, string name, long byteLength, int fileIndex)
+	public ManifestItem(string uuid, string path, string hash, string name, long startingByte, long byteLength, int fileIndex)
 	{
 		UUID = uuid;
 		Path = path;
 		Hash = hash;
 		Name = name;
+		StartingByte = startingByte;
 		ByteLength = byteLength;
 		FileIndex = fileIndex;
 	}
@@ -697,6 +701,140 @@ public class ManifestItem : IComparable
 			throw new Exception("Manifest item cannot be compared to null");
 		}*/
 		return FileIndex.CompareTo(t.FileIndex);
+	}
+}
+
+public class Locker
+{
+	public FileInfo LockerFile { get; set; }
+	public HashConfig LockerConfig { get; set; }
+	public Manifest LockerManifest { get; set; }
+	public Aes Key { get; set; }
+	public Locker(FileInfo lockerFile = null, HashConfig lockerConfig = null, Aes key = null, Manifest lockerManifest = null)
+	{
+		LockerFile = lockerFile;
+		LockerConfig = lockerConfig;
+		LockerManifest = lockerManifest;
+		Key = key;
+	}
+
+	public void GenerateLocker(string fileName)
+	{
+		if(LockerConfig == null)
+		{
+			throw new NullReferenceException("LockerConfig cannot be null when Generating a locker");
+		}
+		string name = $"{fileName}.cry_locker";
+		int index = 0;
+		while (new FileInfo(name).Exists)
+		{
+			index++;
+			name = $"{fileName}({index}).cry_locker";
+		}
+
+		try
+		{
+			LockerFile = new FileInfo(name);
+			LockerFile.Create().Dispose();
+		}
+		catch (Exception e)
+		{
+			throw e;
+		}
+	}
+
+	public void Delete()
+	{
+
+	}
+
+	public string GetPath()
+	{
+		if (!LockerFile.Exists)
+		{
+			throw new NullReferenceException("LockerFile has not been generated!");
+		}
+		return LockerFile.FullName;
+	}
+
+	public void WriteManifest()
+	{
+		LockerManifest.WriteToDisk(LockerFile, Key);
+	}
+
+	public void WriteHashConfig()
+	{
+
+	}
+
+	public Manifest LoadManifest()
+	{
+		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key);
+		if(LockerManifest == null)
+		{
+			throw new NullReferenceException("Failed to load manifest!");
+		}
+		return LockerManifest;
+	}
+
+	public HashConfig LoadHashConfig()
+	{
+		
+		return null;
+	}
+
+	public string Serialize()
+	{
+		string js = JsonSerializer.Serialize(this);
+		byte[] bytes = Encoding.UTF8.GetBytes(js);
+		string hex = Convert.ToHexString(bytes).ToLower();
+		return hex;
+	}
+
+	public static Locker Deserialize(string input)
+	{
+		var decoded = Convert.FromHexString(input);
+		var newItems = JsonSerializer.Deserialize<Locker>(decoded);
+		if (newItems == null)
+		{
+			throw new NullReferenceException("Failed to deserialize Locker");
+		}
+		return newItems;
+	}
+}
+
+public class HashConfig
+{
+	public byte[] Salt { get; private set; }
+	public int DegreeOfParallelism { get; private set; }
+	public int MemorySize { get; private set; }
+	public int Iterations { get; private set; }
+
+	public HashConfig(byte[] salt = null, int degreeOfParallelism = -1, int memorySize = -1, int iterations = -1)
+	{
+		Salt = (salt == null) ? Encoding.ASCII.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
+		DegreeOfParallelism = (degreeOfParallelism <= 0) ? 16:(int)degreeOfParallelism;
+		MemorySize = (memorySize <= 0) ? 8192:(int)memorySize;
+		Iterations = (iterations <= 0) ? 40:(int)iterations;
+	}
+
+	public string Serialize()
+	{
+		string js = JsonSerializer.Serialize(this);
+		byte[] bytes = Encoding.UTF8.GetBytes(js);
+		string hex = Convert.ToHexString(bytes).ToLower();
+		return hex;
+	}
+
+	public static HashConfig Deserialize(string input)
+	{
+		var decoded = Convert.FromHexString(input);
+		var newItems = JsonSerializer.Deserialize<HashConfig>(decoded);
+		if(newItems == null)
+		{
+			throw new NullReferenceException("Failed to deserialize HashConfig");
+		}
+		return newItems;
 	}
 }
 

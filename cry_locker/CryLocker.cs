@@ -322,6 +322,44 @@ namespace cry_locker
             }
         }*/
 
+        private static Aes GenerateKey(string password, HashConfig hc)
+		{
+            byte[]? pBytes = Encoding.ASCII.GetBytes(password);
+            Argon2id? argon = new(pBytes);
+            argon.DegreeOfParallelism = (int)hc.DegreeOfParallelism;
+            argon.MemorySize = (int)hc.MemorySize;
+            argon.Iterations = (int)hc.Iterations;
+            argon.Salt = hc.Salt;
+
+            var key = argon.GetBytes(32);
+            var iv = argon.GetBytes(16);
+
+            //Empty ram after hash is generated
+            argon = null;
+            pBytes = null;
+            GC.Collect();
+
+            //Generate key
+            var AES = Aes.Create();
+
+            AES.Key = key;
+            AES.IV = iv;
+            AES.Mode = CipherMode.CBC;
+            AES.Padding = PaddingMode.PKCS7;
+
+            return AES;
+        }
+
+        /// <summary>
+        /// Number of bytes (length of array)
+        /// </summary>
+        /// <param name="bytes"></param>
+        /// <returns>byte[]</returns>
+        private static byte[] GenerateRandomBytes(int bytes = 32)
+		{
+            return RandomNumberGenerator.GetBytes(bytes);
+        }
+
         private static void Encrypt(string path, bool isFolder)
 		{
             DirectoryInfo? dir = null;
@@ -344,8 +382,8 @@ namespace cry_locker
                 //Ask for password
                 Console.Clear();
 
-                string password = "";
-                bool badPassword = true;
+                string password = "password";
+                /*bool badPassword = true;
 				while (badPassword)
 				{
 					Console.Write("Password:");
@@ -413,59 +451,24 @@ namespace cry_locker
                         Console.Clear();
                         Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 8");
 					}
-				}
+				}*/
 
                 Console.Clear();
                 Console.WriteLine("Generating key...");
 
-                byte[]? pBytes = Encoding.ASCII.GetBytes(password);
-                Argon2id? argon = new(pBytes);
-                argon.DegreeOfParallelism = DegreeOfParallelism;
-                argon.MemorySize = MemorySize;
-                argon.Iterations = Iterations;
-                argon.Salt = Encoding.ASCII.GetBytes(Salt);
+                //Setup locker
+                Locker locker = new();
 
-                var key = argon.GetBytes(32);
-                var iv = argon.GetBytes(16);
+                //Setup config
+                HashConfig hc = new(/*GenerateRandomBytes()*/);
+                locker.LockerConfig = hc;
+                string hcString = hc.Serialize();
+                HashConfig ssss = HashConfig.Deserialize(hcString);
+                
+                locker.GenerateLocker(dir.FullName);
+                locker.Key = GenerateKey(password, hc);
 
-                //Empty ram after hash is generated
-                argon = null;
-                pBytes = null;
-                GC.Collect();
-
-				//Generate key
-				//AesCryptoServiceProvider AES = new();
-				var AES = Aes.Create();
-
-                //https://stackoverflow.com/questions/61159825/password-as-key-for-aes-encryption-decryption
-                //byte[] pw = new UnicodeEncoding().GetBytes(p1);
-
-                AES.Key = key;
-                AES.IV = iv;
-                AES.Mode = CipherMode.CBC;
-                AES.Padding = PaddingMode.PKCS7;
-
-                DirManager.SetKey(AES);
-
-                //Check for existing locker file and increment name
-                string name = $"{dir}.cry_locker";
-				int index = 0;
-				while (new FileInfo(name).Exists)
-				{
-					index++;
-					name = $"{dir}({index}).cry_locker";
-				}
-
-				try
-				{
-                    File.Create(name).Dispose(); //Closes stream
-                }
-                catch (Exception e)
-				{
-                    Console.WriteLine(e.Message);
-                    return;
-				}
-                DirManager.SetLockerFile(new FileInfo(name));
+                //DirManager.SetLockerFile(new FileInfo(name));
 
                 Console.CursorVisible = false;
                 while (!DM.IsLoaded())
@@ -475,7 +478,8 @@ namespace cry_locker
                     Thread.Sleep(250);
                 }
 
-                new Thread(DM.EncryptFiles).Start();
+                //new Thread(DM.EncryptFiles(locker)).Start();
+                DM.EncryptFiles(locker);
 
                 //Wait for encryption
                 Console.Clear();
@@ -496,6 +500,9 @@ namespace cry_locker
                     Thread.Sleep(250);
                 }
                 Console.CursorVisible = true;
+
+                //Save manifes to file
+                locker.WriteManifest();
 
                 //Check for failed items
                 if (DM._failed.Count > 0)
@@ -543,9 +550,9 @@ namespace cry_locker
                 {
                     //Ask for password
                     Console.Write("Password:");
-                    string password = "";
+                    string password = "password";
 
-                    ConsoleKey k;
+                    /*ConsoleKey k;
                     do
                     {
                         var keyInfo = Console.ReadKey(true);
@@ -563,42 +570,22 @@ namespace cry_locker
                         }
                     } while (k != ConsoleKey.Enter);
 
-                    password = password.Trim();
+                    password = password.Trim();*/
 
                     Console.Clear();
                     Console.WriteLine("Generating key...");
 
-                    byte[] pBytes = Encoding.ASCII.GetBytes(password);
-                    Argon2id argon = new(pBytes);
-                    argon.DegreeOfParallelism = DegreeOfParallelism;
-                    argon.MemorySize = MemorySize;
-                    argon.Iterations = Iterations;
-                    argon.Salt = Encoding.ASCII.GetBytes(Salt);
-
-                    var key = argon.GetBytes(32);
-                    var iv = argon.GetBytes(16);
-
-                    //Empty ram after hash is generated
-                    argon = null;
-                    pBytes = null;
-                    GC.Collect();
-
-                    //Generate key
-                    Aes AES = Aes.Create();
-
-                    //https://stackoverflow.com/questions/61159825/password-as-key-for-aes-encryption-decryption
-                    AES.Key = key;
-                    AES.IV = iv;
-                    AES.Mode = CipherMode.CBC;
-                    AES.Padding = PaddingMode.PKCS7;
-
                     string name = Regex.Replace(file.FullName, "[.]cry_locker$", "_decrypted", RegexOptions.IgnoreCase);
-                    var output = Directory.CreateDirectory(name);
-                    DirManager.SetLockerFile(file);
-                    DirManager.SetDecryptFolder(output);
-                    DirManager.SetKey(AES);
+                    //DirManager.SetLockerFile(file);
+                    //DirManager.SetDecryptFolder(output);
+                    //DirManager.SetKey(GenerateKey(password, new()));
                     DirManager.IsDecrypted = false;
-                    new Thread(DirManager.DecryptFiles).Start();
+                    //new Thread(DirManager.DecryptFiles).Start();
+
+                    var outputDir = Directory.CreateDirectory(name);
+                    Locker locker = new(file, new(), GenerateKey(password, new()));
+                    locker.LoadManifest();
+                    DirManager.DecryptFiles(locker, outputDir);
 
                     Console.Clear();
 
@@ -614,7 +601,7 @@ namespace cry_locker
                             Console.WriteLine("Decryption failed with reason:");
                             Console.WriteLine(DirManager.DecryptFailReason);
                             Console.WriteLine("Press any key to continue...");
-                            output.Delete(true);
+                            outputDir.Delete(true);
                             Console.ReadKey();
                             break;
                         }
