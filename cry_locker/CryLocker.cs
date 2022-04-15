@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace cry_locker
 {
@@ -13,7 +14,7 @@ namespace cry_locker
         private const int Iterations = 40;
         private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
 
-        //private static Process explorer;
+        private static Process explorer;
         static void Main(string[] args)
         {
             string loc = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}";
@@ -307,22 +308,22 @@ namespace cry_locker
             return _icon;
         }
 
-        /*private static void OpenFolder(string path)
-        {
-            //string installLocation = @"C:\Users\Camer\Documents\VSProjects";
-            string explorerPath = @"C:\Windows\explorer.exe";
-            try
-            {
-                explorer = Process.Start(explorerPath, $"/root, {path}");
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
-        }*/
+		private static void OpenFolder(string path)
+		{
+			//string installLocation = @"C:\Users\Camer\Documents\VSProjects";
+			string explorerPath = @"C:\Windows\explorer.exe";
+			try
+			{
+				explorer = Process.Start(explorerPath, $"/root, {path}");
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e);
+				throw;
+			}
+		}
 
-        private static Aes GenerateKey(string password, HashConfig hc)
+		private static Aes GenerateKey(string password, HashConfig hc)
 		{
             byte[]? pBytes = Encoding.ASCII.GetBytes(password);
             Argon2id? argon = new(pBytes);
@@ -382,8 +383,8 @@ namespace cry_locker
                 //Ask for password
                 Console.Clear();
 
-                string password = "password";
-				/*bool badPassword = true;
+                string password = "";
+				bool badPassword = true;
 				while (badPassword)
 				{
 					Console.Write("Password:");
@@ -408,8 +409,8 @@ namespace cry_locker
 					} while (k != ConsoleKey.Enter);
 
 					p1 = p1.Trim();
-					// Password Format 1 lower, upper, number, and symbol. Min 4 max 2046
-					if (p1 != null && Regex.IsMatch(p1, @"^(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[^\w\d\s:])([^\s]){8,2048}$"))
+					// Password Format 1 lower, upper, number, and symbol. Min 10 max 256
+					if (p1 != null && Regex.IsMatch(p1, @"^(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[^\w\d\s:])([^\s]){10,256}$"))
 					{
 						Console.Clear();
 						Console.Write("Confirm Password:");
@@ -449,9 +450,9 @@ namespace cry_locker
 					else
 					{
 						Console.Clear();
-						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 8");
+						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 10 (max 256)");
 					}
-				}*/
+				}
 
 				Console.Clear();
                 Console.WriteLine("Generating key...");
@@ -461,23 +462,14 @@ namespace cry_locker
 
                 //Setup config
                 HashConfig hc = new(GenerateRandomBytes());
-                string validation = "";
-				foreach (var item in hc.Salt)
-				{
-                    validation += $"{item.ToString()}-";
-				}
 
                 //HashConfig hc = new();
                 locker.LockerConfig = hc;
-                string hcString = hc.Serialize();
-                HashConfig ssss = HashConfig.Deserialize(hcString);
-
                 locker.GenerateLocker(dir.FullName);
                 locker.Key = GenerateKey(password, hc);
 
-                //DirManager.SetLockerFile(new FileInfo(name));
-
-                Console.CursorVisible = false;
+                //Begin encryption
+                Console.CursorVisible = false; //Stops the cursor from flickering
                 while (!DM.IsLoaded())
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
@@ -485,8 +477,6 @@ namespace cry_locker
                     Thread.Sleep(250);
                 }
 
-                //new Thread(DM.EncryptFiles(locker)).Start();
-                //DM.EncryptFiles(locker);
                 new Thread(() => DM.EncryptFiles(locker)).Start();
 
                 //Wait for encryption
@@ -495,7 +485,6 @@ namespace cry_locker
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
                     Console.Write($"{GetLoading()} Encrypted:{DM._encryptCount}/{DM.GetFiles().Count - DM._failed.Count}");
-                    //Console.Write($" Failed:{DM._failed.Count}");
                     Thread.Sleep(250);
                 }
 
@@ -508,9 +497,6 @@ namespace cry_locker
                     Thread.Sleep(250);
                 }
                 Console.CursorVisible = true;
-
-                //Save manifes to file
-                locker.WriteManifest();
 
                 //Check for failed items
                 if (DM._failed.Count > 0)
@@ -558,44 +544,46 @@ namespace cry_locker
                 {
                     //Ask for password
                     Console.Write("Password:");
-                    string password = "password";
+                    string password = "";
 
-                    /*ConsoleKey k;
-                    do
-                    {
-                        var keyInfo = Console.ReadKey(true);
-                        k = keyInfo.Key;
+					ConsoleKey k;
+					do
+					{
+						var keyInfo = Console.ReadKey(true);
+						k = keyInfo.Key;
 
-                        if (k == ConsoleKey.Backspace && password.Length > 0)
-                        {
-                            Console.Write("\b \b");
-                            password = password[0..^1];
-                        }
-                        else if (!char.IsControl(keyInfo.KeyChar))
-                        {
-                            Console.Write("*");
-                            password += keyInfo.KeyChar;
-                        }
-                    } while (k != ConsoleKey.Enter);
+						if (k == ConsoleKey.Backspace && password.Length > 0)
+						{
+							Console.Write("\b \b");
+							password = password[0..^1];
+						}
+						else if (!char.IsControl(keyInfo.KeyChar))
+						{
+							Console.Write("*");
+							password += keyInfo.KeyChar;
+						}
+					} while (k != ConsoleKey.Enter);
 
-                    password = password.Trim();*/
+					password = password.Trim();
 
-                    Console.Clear();
+					Console.Clear();
                     Console.WriteLine("Generating key...");
 
                     string name = Regex.Replace(file.FullName, "[.]cry_locker$", "_decrypted", RegexOptions.IgnoreCase);
-                    //DirManager.SetLockerFile(file);
-                    //DirManager.SetDecryptFolder(output);
-                    //DirManager.SetKey(GenerateKey(password, new()));
                     DirManager.IsDecrypted = false;
-                    //new Thread(DirManager.DecryptFiles).Start();
-
 
                     //Setup locker
                     Locker locker = new(file);
                     locker.LoadConfig();
                     locker.Key = GenerateKey(password, locker.LockerConfig);
-                    locker.LoadManifest();
+					if (locker.LoadManifest() == null)
+					{
+                        Console.Clear();
+                        Console.WriteLine("Failed to load locker! Please check your password and try again!");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
+					}
 
                     //Setup output dir and start decrypt
                     var outputDir = Directory.CreateDirectory(name);
@@ -622,33 +610,7 @@ namespace cry_locker
                     }
                     Console.CursorVisible = true;
                     Console.Clear();
-                    //OpenFolder(output.FullName);
-
-                    //Setup decryption folder
-                    /*DirManager.key = AES;
-                    DirManager.EncryptFile = file;
-
-
-                    DirManager.isDecrypted = false;
-                    (new Thread(DirManager.DecryptFiles)).Start();
-
-                    while (!DirManager.isDecrypted)
-                    {
-                        Thread.Sleep(1000);
-                        Console.Clear();
-                        Console.WriteLine($"{getLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
-                        if (DirManager.DecryptFailed)
-                        {
-                            Console.WriteLine("Decryption failed with reason:");
-                            Console.WriteLine(DirManager.DecryptFailReason);
-                            break;
-                        }
-                    }*/
-                    //DirManager.loadFile(file);
-
-                    /*Console.WriteLine("Press any key to continue...");
-                    Console.ReadKey();*/
-
+                    OpenFolder(outputDir.FullName);
                 }
                 else
                 {
@@ -667,35 +629,6 @@ namespace cry_locker
 
 
         }
-
-        /* private static Config GetConfig()
-         {
-             //string loc = System.Reflection.Assembly.GetExecutingAssembly().Location;
-             string loc = AppContext.BaseDirectory;
-             FileInfo exc = new(loc);
-             FileInfo conf = new($"{exc.Directory.FullName}/config.json");
-             if (conf.Exists)
-             {
-                 using FileStream fs = File.OpenRead(conf.FullName);
-                 Config? result = JsonSerializer.Deserialize<Config>(fs);
-                 if(result == null)
-                 {
-                     throw new Exception("Failed to load Config! Check if the syntax is valid...");
-                 }
-                 return result;
-             }
-             else
-             {
-                 var c = new Config("C:\\Users\\%USER%\\Documents", 2);
-                 using FileStream fs = File.Create($"{exc.Directory.FullName}/config.json");
-                 using StreamWriter sw = new(fs);
-                 string t = JsonSerializer.Serialize(c);
-                 Console.WriteLine(t);
-                 sw.Write(t);
-                 sw.Flush();
-
-                 return c;
-             }
-         }*/
+        
     }
 }

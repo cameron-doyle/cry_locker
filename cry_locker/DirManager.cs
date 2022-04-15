@@ -8,29 +8,13 @@ public class DirManager
 {
 	public Dir _root { get; private set; }
 	private bool _isEncrypted;
-	//private static Locker? LockerFile;
 	private static DirectoryInfo? DecryptFolder;
-	//private static Aes? Key;
-
 
 	public DirManager(DirectoryInfo root)
 	{
 		DecryptFolder = null;
-/*		Key = null;
-		LockerFile = null;*/
 		_root = new Dir(this, root);
 	}
-/*	public DirManager(string path)
-	{
-		if (Directory.Exists(path))
-		{
-			_root = new Dir(this, new DirectoryInfo(path));
-		}
-		else
-		{
-			throw new Exception($"Directory \"{path}\" does not exist!");
-		}
-	}*/
 
 	public bool IsLoaded()
 	{
@@ -52,30 +36,6 @@ public class DirManager
 		return _root.GetFiles();
 	}
 
-/*	public static Aes GetKey()
-	{
-		if (Key == null)
-			throw new NullReferenceException("Key was never set!");
-		return Key;
-	}
-
-	public static void SetKey(Aes key)
-	{
-		Key = key;
-	}*/
-
-/*	public static FileInfo GetLockerFile()
-	{
-		if (LockerFile == null)
-			throw new NullReferenceException("_lockerFile was never set!");
-		return LockerFile;
-	}*/
-/*	public static void SetLockerFile(FileInfo locker)
-	{
-		if (!locker.Exists)
-			throw new Exception($"{locker.FullName} does not exist!");
-		LockerFile = locker;
-	}*/
 	public static DirectoryInfo GetDecryptFolder()
 	{
 		if (DecryptFolder == null)
@@ -88,7 +48,6 @@ public class DirManager
 			throw new Exception($"{folder.FullName} does not exist!");
 		DecryptFolder = folder;
 	}
-
 
 	public int _encryptCount = 0;
 	public double _encryptionTime { get; private set; }
@@ -106,8 +65,6 @@ public class DirManager
 			var e = new Exception($"Maximum number of files exceeded! Max files {int.MaxValue}");
 			_failed.Add(new FailedItem(files[0],e));
 			throw e;
-			//_isEncrypted = true;
-			//return;
 		}
 
 		//Time encryption
@@ -140,9 +97,8 @@ public class DirManager
 			Thread.Sleep(1);
 		}
 
-		//Generate manifest (requires hashes) and write
-		//Manifest man = GenerateManifest(); //TODO remove failed items before saving manifest
 		locker.LockerManifest = GenerateManifest();
+		locker.WriteManifest();
 	}
 
 	public static int Decrypted;
@@ -157,29 +113,13 @@ public class DirManager
 		DecryptFailed = false;
 		DecryptFailReason = "";
 
-		//var locker = GetLockerFile();
-		//var outputFolder = GetDecryptFolder();
-		//var key = GetKey();
-
 		if (!outputDir.Exists)
 			throw new Exception($"\"{outputDir.FullName}\" does not exist!");
 
-		//Manifest? manifest = Manifest.LoadFromDisk(locker.LockerFile, );
-		
-		
-/*		if(manifest == null)
-		{
-			DecryptFailReason = "Failed to Decrypt! Check your password and make sure there's enough hard drive space!";
-			DecryptFailed = true;
-			return;
-		}*/
 
-		ToDecrypt = locker.LockerManifest.GetItems().Count;
+		var man = locker.LockerManifest;
 
-		var man = locker.LoadManifest();
-
-		//Decrypt files
-		//TODO make manifest ienumerable
+		ToDecrypt = man.GetItems().Count;
 
 		foreach (var item in man)
 		{
@@ -353,10 +293,8 @@ public class Dir
 public class OurFile
 {
 	public FileInfo _info { get; private set; }
-	//private byte[] fileContent;
 	private Dir _parent;
 	public string? _hash { get; private set; }
-	//public static long rootByte { get; private set; }
 	public long _byteLength { get; private set; }
 	public long _startingByte { get; private set; }
 	/// <summary>
@@ -401,8 +339,6 @@ public class OurFile
 
 	public bool Encrypt(Locker locker)
 	{
-		//var locker = DirManager.GetLockerFile().FullName;
-		//var encryptor = DirManager.GetKey().CreateEncryptor();
 		var manager = _parent._manager;
 		
 		try
@@ -523,7 +459,6 @@ public class Manifest : IEnumerable<ManifestItem>
 		}
 		catch (Exception e)
 		{
-			//File.Delete(locker); //If manifest is missing, the locker is corrypt, delete it.
 			file.Delete();
 			Console.WriteLine("Failed to save locker, reason:");
 			Console.WriteLine(e.Message);
@@ -699,13 +634,8 @@ public class ManifestItem : IComparable
 
 	public int CompareTo(object? obj)
 	{
-		/*System.ArgumentException: 'Object must be of type Int32.'*/
 		var t = (ManifestItem?)obj;
-		/*if(t == null)
-		{
-			throw new Exception("Manifest item cannot be compared to null");
-		}*/
-		return FileIndex.CompareTo(t.FileIndex);
+		return FileIndex.CompareTo(t?.FileIndex);
 	}
 }
 
@@ -739,8 +669,7 @@ public class Locker
 
 		try
 		{
-			//LockerFile = new FileInfo(name);
-			string obj = Serialize();
+			string obj = LockerConfig.Serialize();
 			using (var fs = File.Create(name))
 			{
 				using(StreamWriter sw = new StreamWriter(fs))
@@ -756,11 +685,11 @@ public class Locker
 		LockerFile = new FileInfo(name);
 	}
 
-	public void Delete()
-	{
-
-	}
-
+	/// <summary>
+	/// Gets the full path of the locker
+	/// </summary>
+	/// <returns>fullpath to locker file</returns>
+	/// <exception cref="NullReferenceException"></exception>
 	public string GetPath()
 	{
 		if (!LockerFile.Exists)
@@ -770,23 +699,17 @@ public class Locker
 		return LockerFile.FullName;
 	}
 
+	/// <summary>
+	/// Completes the encryption process by saving the manifest to the end of the file.
+	/// </summary>
 	public void WriteManifest()
 	{
 		LockerManifest.WriteToDisk(LockerFile, Key);
 	}
 
-	public void WriteHashConfig()
-	{
-
-	}
-
-	public Manifest LoadManifest()
+	public Manifest? LoadManifest()
 	{
 		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key);
-		if(LockerManifest == null)
-		{
-			throw new NullReferenceException("Failed to load manifest!");
-		}
 		return LockerManifest;
 	}
 
@@ -813,8 +736,9 @@ public class Locker
 				string s = Encoding.Default.GetString(bytes);
 				if (s.StartsWith(pattern))
 				{
+					//Compile results until ending token (]) is found
 					string result = "";
-					for (int i = pattern.Length; i < 2000; i++)
+					for (int i = pattern.Length; i < fs.Length; i++)
 					{
 						fs.Seek(i, SeekOrigin.Begin);
 						char b = br.ReadChar();
@@ -828,8 +752,8 @@ public class Locker
 				}
 				else
 				{
-					//Legacy locker, use defaults
-					LockerConfig = new HashConfig();
+					//Legacy locker
+					LockerConfig = new HashConfig(null);
 					return LockerConfig;
 				}
 			}
@@ -840,26 +764,6 @@ public class Locker
 		}
 		return null;
 	}
-
-	public string Serialize()
-	{
-		string js = JsonSerializer.Serialize(this);
-		byte[] bytes = Encoding.UTF8.GetBytes(js);
-		string hex = Convert.ToHexString(bytes).ToLower();
-		return hex;
-	}
-
-	public static Locker Deserialize(string input)
-	{
-		var decoded = Convert.FromHexString(input);
-		var newItems = JsonSerializer.Deserialize<Locker>(decoded);
-		if (newItems == null)
-		{
-			throw new NullReferenceException("Failed to deserialize Locker");
-		}
-		return newItems;
-	}
-
 }
 
 public class HashConfig
@@ -869,12 +773,12 @@ public class HashConfig
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
 
-	public HashConfig(byte[] salt = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
+	//Changing these default values will break backwards compadibility!
+	//Default dop:16, ms:8192, its:40, salt:Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk")
+	public HashConfig(byte[] salt, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
-		//Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
-		//Somehow randomGen salt is getting corrpted somewhere along the chain
-		var d = Encoding.UTF8;
-		Salt = RandomNumberGenerator.GetBytes(32);
+		//Lockers without config headers are assumed to be legacy and will use the hard coded legay salt.
+		Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
 		DegreeOfParallelism = degreeOfParallelism;
 		MemorySize = memorySize;
 		Iterations = iterations;
