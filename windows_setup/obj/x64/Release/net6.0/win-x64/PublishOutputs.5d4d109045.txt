@@ -1,2 +1,0 @@
-C:\Users\Camer\Documents\VSProjects\cry_locker\releases\windows_setup.pdb
-C:\Users\Camer\Documents\VSProjects\cry_locker\releases\windows_setup.exe

@@ -1,5 +1,0 @@
-C:\Users\Camer\Documents\VSProjects\Setup\bin\Release\net6.0\publish\Setup.exe
-C:\Users\Camer\Documents\VSProjects\Setup\bin\Release\net6.0\publish\Setup.dll
-C:\Users\Camer\Documents\VSProjects\Setup\bin\Release\net6.0\publish\Setup.deps.json
-C:\Users\Camer\Documents\VSProjects\Setup\bin\Release\net6.0\publish\Setup.runtimeconfig.json
-C:\Users\Camer\Documents\VSProjects\Setup\bin\Release\net6.0\publish\Setup.pdb
