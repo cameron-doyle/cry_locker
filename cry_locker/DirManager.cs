@@ -641,16 +641,13 @@ public class ManifestItem : IComparable
 
 public class Locker
 {
-	public FileInfo LockerFile { get; set; }
-	public HashConfig LockerConfig { get; set; }
-	public Manifest LockerManifest { get; set; }
-	public Aes Key { get; set; }
-	public Locker(FileInfo lockerFile = null, HashConfig lockerConfig = null, Aes key = null, Manifest lockerManifest = null)
+	public FileInfo? LockerFile { get; set; }
+	public HashConfig? LockerConfig { get; set; }
+	public Manifest? LockerManifest { get; set; }
+	public Aes? Key { get; set; }
+	public Locker(FileInfo? lockerFile = null)
 	{
 		LockerFile = lockerFile;
-		LockerConfig = lockerConfig;
-		LockerManifest = lockerManifest;
-		Key = key;
 	}
 
 	public void GenerateLocker(string fileName)
@@ -713,9 +710,8 @@ public class Locker
 		return LockerManifest;
 	}
 
-	public HashConfig? LoadConfig()
+	public HashConfig LoadConfig()
 	{
-		//TODO GET THE CONFIG
 		if (LockerFile == null)
 		{
 			throw new NullReferenceException("LockerFile cannot be null when loading config");
@@ -758,11 +754,11 @@ public class Locker
 				}
 			}
 		}
-		catch (Exception)
+		catch (Exception e)
 		{
-			return null;
+			throw e;
 		}
-		return null;
+		throw new Exception("Config header damaged!");
 	}
 }
 

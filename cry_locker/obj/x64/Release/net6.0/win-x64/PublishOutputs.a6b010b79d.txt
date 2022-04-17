@@ -1,2 +1,0 @@
-C:\Users\Camer\Documents\VSProjects\cry_locker\release\bin\cry_locker.pdb
-C:\Users\Camer\Documents\VSProjects\cry_locker\release\bin\cry_locker.exe

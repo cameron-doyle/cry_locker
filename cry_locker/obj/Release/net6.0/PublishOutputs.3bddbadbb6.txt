@@ -1,7 +1,0 @@
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\cry_locker.exe
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\cry_locker.dll
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\cry_locker.deps.json
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\cry_locker.runtimeconfig.json
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\cry_locker.pdb
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\Konscious.Security.Cryptography.Argon2.dll
-C:\Users\Camer\Documents\VSProjects\cry_locker\bin\Release\net6.0\publish\Konscious.Security.Cryptography.Blake2.dll

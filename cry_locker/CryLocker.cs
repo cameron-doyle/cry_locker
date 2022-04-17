@@ -14,7 +14,7 @@ namespace cry_locker
         private const int Iterations = 40;
         private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
 
-        private static Process explorer;
+        private static Process? explorer;
         static void Main(string[] args)
         {
             string loc = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}";
@@ -468,6 +468,9 @@ namespace cry_locker
                 locker.GenerateLocker(dir.FullName);
                 locker.Key = GenerateKey(password, hc);
 
+                password = null;
+                GC.Collect();
+
                 //Begin encryption
                 Console.CursorVisible = false; //Stops the cursor from flickering
                 while (!DM.IsLoaded())
@@ -498,15 +501,23 @@ namespace cry_locker
                 }
                 Console.CursorVisible = true;
 
+                var failed = DM._failed;
+                var total = DM.GetFiles().Count;
+                var size = DM._root._size;
+                var encryptionTime = DM._encryptionTime;
+                locker = null;
+                DM = null;
+                GC.Collect();
+
                 //Check for failed items
-                if (DM._failed.Count > 0)
+                if (failed.Count > 0)
                 {
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-                    Console.WriteLine($"Attempted to encrypt {DM.GetFiles().Count} files, {DataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s), however {DM._failed.Count} failed!\nFailed to encrypted:\n[");
+                    Console.WriteLine($"Attempted to encrypt {total} files, {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(size / (encryptionTime / 1000))} {DataSizePostFix(size / (encryptionTime / 1000))}/s), however {failed.Count} failed!\nFailed to encrypted:\n[");
                     //Console.WriteLine($"Encryption completed in {DirManager.encryptionTime}, with {DirManager.failed.Count} failures!\nFailed to encrypted:\n[");
-                    foreach (FailedItem i in DM._failed)
+                    foreach (FailedItem i in failed)
                     {
                         Console.WriteLine($"{i._file._path}{i._file._name}");
                         Console.WriteLine($"\t{i._exception.Message}");
@@ -518,7 +529,7 @@ namespace cry_locker
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-                    Console.WriteLine($"Encrypted {DataSizeConverter(DM._root._size)} {DataSizePostFix(DM._root._size)} in {Math.Round(DM._encryptionTime >= 1000 ? DM._encryptionTime / 1000 : DM._encryptionTime)}{(DM._encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(DM._root._size / (DM._encryptionTime / 1000))} {DataSizePostFix(DM._root._size / (DM._encryptionTime / 1000))}/s)");
+                    Console.WriteLine($"Encrypted {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(size / (encryptionTime / 1000))} {DataSizePostFix(size / (encryptionTime / 1000))}/s)");
                 }
                 GC.Collect();
                 Console.WriteLine("Press any key to continue...");
@@ -527,7 +538,7 @@ namespace cry_locker
             }
             else
             {
-                Console.WriteLine($"\"{dir.FullName}\" does not exit");
+                Console.WriteLine($"\"{dir?.FullName}\" does not exit");
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey();
             }
@@ -574,6 +585,7 @@ namespace cry_locker
 
                     //Setup locker
                     Locker locker = new(file);
+
                     locker.LoadConfig();
                     locker.Key = GenerateKey(password, locker.LockerConfig);
 					if (locker.LoadManifest() == null)
