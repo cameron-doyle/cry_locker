@@ -3,6 +3,7 @@ using System.Text;
 using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text.Json;
+using System.ComponentModel;
 
 public class DirManager
 {
@@ -60,7 +61,7 @@ public class DirManager
 
 		List<OurFile> files = _root.GetFiles();
 
-		if(files.Count > int.MaxValue)
+		if (files.Count > int.MaxValue)
 		{
 			var e = new Exception($"Maximum number of files exceeded! Max files {int.MaxValue}");
 			_failed.Add(new FailedItem(files[0],e));
@@ -77,8 +78,21 @@ public class DirManager
 			if (f._info.Length <= long.MaxValue)
 			{
 				f._fileIndex = i;
-				if(f.Encrypt(locker))
-					i++;
+				f.Encrypt(locker);
+				/*int fi = 0;
+				while (!f.Encrypt(locker))
+				{
+					if(fi > 5)
+					{
+						break;
+					}
+					else
+					{
+						Thread.Sleep(50);
+					}
+					fi++;
+				}*/
+				i++;
 			}
 			else
 			{
@@ -192,11 +206,11 @@ public class DirManager
 		Manifest m = new(this);
 		foreach (OurFile f in files)
 		{
-			if (!f._isComputed)
+			/*if (!f._isComputed)
 			{
 				throw new Exception("All file hashes must be computed before generating manifest!");
-			}
-			m.Add(new ManifestItem(f._uuid, f._path, f._hash, f._name, f._startingByte, f._byteLength, f._fileIndex));
+			}*/
+			m.Add(new ManifestItem(f._uuid, f._path, /*f._hash,*/ f._name, f._startingByte, f._byteLength, f._fileIndex));
 		}
 
 		return m;
@@ -221,6 +235,7 @@ public class Dir
 		_parent = parent;
 		_self = dir;
 		_size = 0;
+		_filesLoaded = true;
 
 		foreach (DirectoryInfo d in dir.GetDirectories())
 		{
@@ -237,7 +252,7 @@ public class Dir
 			_files.Add(nf);
 		}
 
-		_filesLoaded = true;
+		
 	}
 
 	public bool IsLoaded()
@@ -249,11 +264,11 @@ public class Dir
 
 	public bool IsHashed()
 	{
-		foreach (OurFile f in GetFiles())
+		/*foreach (OurFile f in GetFiles())
 		{
 			if (!f._isComputed)
 				return false;
-		}
+		}*/
 		return true;
 	}
 
@@ -294,7 +309,7 @@ public class OurFile
 {
 	public FileInfo _info { get; private set; }
 	private Dir _parent;
-	public string? _hash { get; private set; }
+	//public string? _hash { get; private set; }
 	public long _byteLength { get; private set; }
 	public long _startingByte { get; private set; }
 	/// <summary>
@@ -305,7 +320,7 @@ public class OurFile
 	public string _path { get; private set; }
 	public string _name { get; private set; }
 	public string? _uuid { get; private set; }
-	public bool _isComputed { get; private set; }
+	//public bool _isComputed { get; private set; }
 
 	public OurFile(FileInfo file, Dir parent, string? uuid = null)
 	{
@@ -316,7 +331,8 @@ public class OurFile
 		if (uuid == null)
 			uuid = Guid.NewGuid().ToString();
 		_uuid = uuid;
-		ThreadPool.QueueUserWorkItem(Hash);
+		//ThreadPool.QueueUserWorkItem(Hash);
+		//Hash(null);
 	}
 
 	public string GetRelativePath()
@@ -324,18 +340,26 @@ public class OurFile
 		return $"{_parent.GetLocalPath()}\\{_info.Name}";
 	}
 
-	private void Hash(Object stateInfo)
+	/*private void Hash(Object stateInfo)
 	{
-		using (FileStream fs = _info.OpenRead())
+		try
 		{
-			using BufferedStream b = new(fs);
+			using (FileStream fs = _info.OpenRead())
+			{
+				using BufferedStream b = new(fs);
 
-			var hash_algo = MD5.Create();
-			_hash = BitConverter.ToString(hash_algo.ComputeHash(b)).Replace("-", "").ToLower();
+				var hash_algo = MD5.Create();
+				_hash = BitConverter.ToString(hash_algo.ComputeHash(b)).Replace("-", "").ToLower();
+			}
+
+
 		}
-
+		catch (Exception e)
+		{
+			_hash = null;
+		}
 		_isComputed = true;
-	}
+	}*/
 
 	public bool Encrypt(Locker locker)
 	{
@@ -347,6 +371,7 @@ public class OurFile
 			using (FileStream fileRead = _info.OpenRead())
 			{
 				long startingLength;
+				//TODO instead of opening and closing the lockerFile for ever file being encrypted, just access a always open filestream and write to it
 				using (FileStream fileWrite = File.OpenWrite(locker.GetPath()))
 				{
 					startingLength = fileWrite.Length;
@@ -361,14 +386,19 @@ public class OurFile
 				//Get a new fileinfo and check the length
 				_byteLength = (uint)(new FileInfo(locker.LockerFile.FullName).Length - startingLength);
 			}
-			manager._encryptCount++;
+			
+			
 		}
 		catch (Exception e)
 		{
-			manager._failed.Add(new FailedItem(this, e));
+			var item = new FailedItem(this, e);
+			//if (!manager._failed.Contains(item))
+				manager._failed.Add(item);
+			GC.Collect();
 			return false;
 		}
 		GC.Collect();
+		manager._encryptCount++;
 		return true;
 	}
 
@@ -615,17 +645,17 @@ public class ManifestItem : IComparable
 	//Different case used for JSON formatting
 	public string UUID { get; set; }
 	public string Path { get; set; }
-	public string Hash { get; set; }
+/*	public string Hash { get; set; }*/
 	public string Name { get; set; }
 	public long StartingByte { get; set; }
 	public long ByteLength { get; set; }
 	public int FileIndex { get; set; }
 
-	public ManifestItem(string uuid, string path, string hash, string name, long startingByte, long byteLength, int fileIndex)
+	public ManifestItem(string uuid, string path, /*string hash,*/ string name, long startingByte, long byteLength, int fileIndex)
 	{
 		UUID = uuid;
 		Path = path;
-		Hash = hash;
+		//Hash = hash;
 		Name = name;
 		StartingByte = startingByte;
 		ByteLength = byteLength;
