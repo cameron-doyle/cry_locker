@@ -40,7 +40,6 @@ namespace cry_locker
                 Console.WriteLine(item);
             }
             Console.ReadLine();*/
-
             while (true)
             {
 				//string[] args = { "-e", "VSProjects/t" };
@@ -102,16 +101,20 @@ namespace cry_locker
 					}
                     Console.WriteLine(path);
                 }
-                else
+				else
 				{
-                    input = Console.ReadLine();
-                    cmd = GetCmd(input);
-                    string? t_argument = GetArgument(input);
-                    if (t_argument != null)
-                        path = $"{loc}/{t_argument}";
+                    path = $"{loc}/test.cry_locker";
+                    //path = $"{loc}/test";
+                    cmd = "decrypt";
+                    //cmd = "encrypt";
+                    /*input = Console.ReadLine();
+					cmd = GetCmd(input);
+					string? t_argument = GetArgument(input);
+					if (t_argument != null)
+						path = $"{loc}/{t_argument}";*/
                 }
 
-                switch (cmd)
+				switch (cmd)
                 {
                     case "encrypt":
                         Encrypt(path, true);
@@ -436,10 +439,10 @@ namespace cry_locker
                 //Ask for password
                 Console.Clear();
 
-                string password = "";
+                string password = "password";
 				bool badPassword = true;
                 Console.CursorVisible = true;
-                while (badPassword)
+                /*while (badPassword)
 				{
 					Console.Write("Password:");
 					string p1 = "";
@@ -506,7 +509,7 @@ namespace cry_locker
 						Console.Clear();
 						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 10 (max 256)");
 					}
-				}
+				}*/
 
 				Console.Clear();
                 Console.CursorVisible = false;
@@ -516,7 +519,7 @@ namespace cry_locker
                 Locker locker = new();
 
                 //Setup config
-                HashConfig hc = new(GenerateRandomBytes());
+                HashConfig hc = new(/*GenerateRandomBytes()*/);
 
                 //HashConfig hc = new();
                 locker.LockerConfig = hc;
@@ -608,9 +611,9 @@ namespace cry_locker
                 {
                     //Ask for password
                     Console.Write("Password:");
-                    string password = "";
+                    string password = "password";
 
-					ConsoleKey k;
+                    /*ConsoleKey k;
 					do
 					{
 						var keyInfo = Console.ReadKey(true);
@@ -628,7 +631,7 @@ namespace cry_locker
 						}
 					} while (k != ConsoleKey.Enter);
 
-					password = password.Trim();
+					password = password.Trim();*/
 
 					Console.Clear();
                     Console.WriteLine("Generating key...");

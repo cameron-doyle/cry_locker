@@ -125,7 +125,7 @@ try
     CurrentUser?.SetValue("ProgId", "");
 
     //hash = Base64(MicrosoftHash(MD5(toLower(extension, sid, progid, regdate, experience))))
-    var hash = Ba
+    //var hash = Ba
     CurrentUser?.SetValue("Hash", "");
     CurrentUser?.Close();
 
