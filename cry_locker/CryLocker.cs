@@ -10,12 +10,13 @@ namespace cry_locker
     class CryLocker
     {
         //Changing these will break old lockers
-        private const int DegreeOfParallelism = 16;
-        private const int MemorySize = 8192;
-        private const int Iterations = 40;
-        private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
+        //private const int DegreeOfParallelism = 16;
+        //private const int MemorySize = 8192;
+        //private const int Iterations = 40;
+        //private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
 
         private static Process? explorer;
+        public const string extention = "cry_locker";
         static void Main(string[] args)
         {
             string loc = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}";
@@ -40,138 +41,132 @@ namespace cry_locker
                 Console.WriteLine(item);
             }
             Console.ReadLine();*/
-            while (true)
-            {
+            /*while (true)
+            {*/
 				//string[] args = { "-e", "VSProjects/t" };
-				bool continousExecution = false;
-				if (args.Length == 0)
-					continousExecution = true;
+				//bool continousExecution = false;
+				/*if (args.Length == 0)
+					continousExecution = true;*/
 
 				string? cmd = "";
                 string? path = "";
 
-                Console.Write($"{loc}>");
-                bool clear = false;
-                string? input = null;
-                input = input?.ToLower().Trim();
+            //Console.Write($"{loc}>");
+            //bool clear = false;
+            //string? input = null;
+            //input = input?.ToLower().Trim();
 
-				//Argument check
-				/*if (args.Length == 1)
-				{
-                    var s = args[0];
-                    var file = new FileInfo(s);
-                    var file2 = new FileInfo($"{System.IO.Directory.GetCurrentDirectory()}/{s}");
+            //Argument check
+            /*if (args.Length == 1)
+            {
+                var s = args[0];
+                var file = new FileInfo(s);
+                var file2 = new FileInfo($"{System.IO.Directory.GetCurrentDirectory()}/{s}");
 
-                    Console.WriteLine(file2.FullName);
-                    Console.ReadLine();
-                    return;
-                    return;
-                    if (file.Exists)
-					{
-                        cmd = "encrypt";
-                        path = file.FullName;
-					}else if (file2.Exists)
-					{
-                        cmd = "encrypt";
-                        path = file2.FullName;
-					}
-					else
-					{
-                        Console.Clear();
-                        Console.WriteLine($"File '{s}' does not exist!");
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-					}
-				}
-                else */
-                if (args.Length >= 2)
-				{
-                    cmd = GetCmd(args[0]);
-                    path = args[1].Trim();
-                    var item = new FileInfo(path);
-
-                    //Check for relative or full path
-					if (!item.Exists)
-					{
-                        item = new FileInfo($"{System.IO.Directory.GetCurrentDirectory()}/{path}");
-						if (item.Exists)
-						{
-                            path = item.FullName;
-						}
-					}
-                    Console.WriteLine(path);
+                Console.WriteLine(file2.FullName);
+                Console.ReadLine();
+                return;
+                return;
+                if (file.Exists)
+                {
+                    cmd = "encrypt";
+                    path = file.FullName;
+                }else if (file2.Exists)
+                {
+                    cmd = "encrypt";
+                    path = file2.FullName;
                 }
-				else
+                else
+                {
+                    Console.Clear();
+                    Console.WriteLine($"File '{s}' does not exist!");
+                    Console.WriteLine("Press any key to continue...");
+                    Console.ReadKey();
+                }
+            }
+            else */
+            List<string> t_args = new();
+            //t_args.Add("-h");
+            //t_args.Add(@"C:\Users\Camer\test");
+            //t_args.Add(@"C:\Users\Camer\test\tfile.mkv");
+            //t_args.Add(@"C:\Users\Camer\test.cry_locker");
+            t_args.Add(@"C:\Users\Camer\test\tfile.cry_locker");
+            if (t_args.Count == 1)
+			{
+				switch (EvalAction(t_args[0]))
 				{
-                    path = $"{loc}/test.cry_locker";
-                    //path = $"{loc}/test";
-                    cmd = "decrypt";
-                    //cmd = "encrypt";
-                    /*input = Console.ReadLine();
+                    case EvalType.decrypt:
+                        cmd = "decrypt";
+                        path = t_args[0];
+                        break;
+                    case EvalType.encrypt_dir:
+                        cmd = "encrypt";
+                        path = t_args[0];
+                        break;
+                    case EvalType.encrypt_file:
+                        cmd = "encrypt";
+                        path = t_args[0];
+                        break;
+                }
+
+                //path = t_args[1].Trim();
+                //var item = new FileInfo(path);
+
+                //Check for relative or full path
+                /*if (!item.Exists)
+                {
+                    item = new FileInfo($"{System.IO.Directory.GetCurrentDirectory()}/{path}");
+                    if (item.Exists)
+                    {
+                        path = item.FullName;
+                    }
+                }
+                Console.WriteLine(path);*/
+            }
+            else if(t_args.Count >= 2)
+			{
+                cmd = t_args[0];
+                path = t_args[1];
+            }
+				/*else
+				{
+					input = Console.ReadLine();
 					cmd = GetCmd(input);
 					string? t_argument = GetArgument(input);
 					if (t_argument != null)
-						path = $"{loc}/{t_argument}";*/
-                }
+						path = $"{loc}/{t_argument}";
+				}*/
 
-				switch (cmd)
-                {
-                    case "encrypt":
-                        Encrypt(path, true);
-                        clear = true;
-                        break;
+			switch (cmd)
+            {
+                case "encrypt":
+                    Encrypt(path);
+                    break;
 
-                    case "decrypt":
-                        Decrypt(path);
-                        clear = true;
-                        break;
+                case "decrypt":
+                    Decrypt(path);
+                    //clear = true;
+                    break;
 
-                    case "help":
-                        Console.WriteLine("" +
-                            "cd         navigate to directory.\n" +
-                            $"ls/dir    lists content of current working directory.\n" +
-                            $"clear     clears the terminal.\n" +
-                            "-e/encrypt encrypts selected folder.\n" +
-                            "-d/decrypt decrypts locker.\n" +
-                            "-a/add     add a file/folder to an existing locker.");
-                        break;
+                case "help":
+                    Console.WriteLine("" +
+                        "cd         navigate to directory.\n" +
+                        $"ls/dir    lists content of current working directory.\n" +
+                        $"clear     clears the terminal.\n" +
+                        "-e/encrypt encrypts selected folder.\n" +
+                        "-d/decrypt decrypts locker.\n" +
+                        "-a/add     add a file/folder to an existing locker.");
+                    break;
 
-                    case "clear":
-                        clear = true;
-                        break;
-
-                    case "cd":
-                        if (path != null)
-                        {
-                            DirectoryInfo test = new(path);
-                            if (test.Exists)
-                                loc = test.FullName;
-                        }
-                        else Console.WriteLine("Syntax error! cd requires a folder to navigate to.");
-                        break;
-
-                    case "list":
-                        DirectoryInfo dir = new(loc);
-                        foreach (var d in dir.GetDirectories())
-                        {
-                            Console.WriteLine(d.Name);
-                        }
-
-                        foreach (var f in dir.GetFiles())
-                        {
-                            Console.WriteLine(f.Name);
-                        }
-                        break;
-
-                    default:
-                        Console.WriteLine($"Command \"{cmd}\" is unrecognized! use -h to see a list of commands");
-                        break;
+                default:
+                    Console.WriteLine($"Syntax invalid! use -h to see a list of commands");
+                    break;
 
 
-                }
+            }
 
                 //Terminal formatting
-                Console.WriteLine("");
+                /*Console.WriteLine("");
 				if (clear)
 				{
                     Console.Clear();
@@ -179,8 +174,42 @@ namespace cry_locker
                 }
 
                 if (!continousExecution)
-                    break;
+                    break;*/
+            //}
+        }
+
+        private enum EvalType
+		{
+            decrypt,
+            encrypt_file,
+            encrypt_dir
+		}
+
+        private static EvalType? EvalAction(string path)
+		{
+            //Figure out if dir and file
+            if (File.Exists(path) || Directory.Exists(path))
+            {
+                FileAttributes attr = File.GetAttributes(path);
+                if ((attr & FileAttributes.Directory) == FileAttributes.Directory)
+                {
+                    if (Directory.Exists(path))
+                        return EvalType.encrypt_dir;
+                }
+                else
+                {
+                    var f = new FileInfo(path);
+                    if (f.Exists && f.Extension == $".{extention}")
+                    {
+                        return EvalType.decrypt;
+                    }
+                    else if (f.Exists)
+                    {
+                        return EvalType.encrypt_file;
+                    }
+                }
             }
+            return null;
         }
 
         private static string? GetCmd(string? input)
@@ -228,38 +257,38 @@ namespace cry_locker
         /// </summary>
         /// <param name="size">The value in bytes</param>
         /// <returns></returns>
-        public static double DataSizeConverter(double bytes)
+        public static long DataSizeConverter(long bytes)
         {
             //{Math.Round(DM.Root.size > 1073741824 ? DM.Root.size / 1073741824 : DM.Root.size / 1048576, 2)} {(DM.Root.size > 1073741824 ? gb : mb)} in {Math.Round(DirManager.encryptionTime, 2)} seconds! ({Math.Round(((DM.Root.size / DirManager.encryptionTime) > 1073741824 ? DM.Root.size / 1073741824 : DM.Root.size / 1048576) / DirManager.encryptionTime)} {((DM.Root.size / DirManager.encryptionTime) > 1073741824 ? gb : mb)}/s)");
             if(bytes >= 1125899906842624)
             {
                 //PB
-                return Math.Round(bytes / 1125899906842624, 2);
+                return bytes / 1125899906842624;
             }
             else if(bytes >= 1099511627776)
             {
                 //TB
-                return Math.Round(bytes / 1099511627776, 2);
+                return bytes / 1099511627776;
             }
             else if (bytes >= 1073741824)
             {
                 //GB
-                return Math.Round(bytes / 1073741824, 2);
+                return bytes / 1073741824;
             }
             else if (bytes >= 1048576)
             {
                 //MB
-                return Math.Round(bytes / 1048576, 2);
+                return bytes / 1048576;
             }
             else if(bytes >= 1024)
             {
                 //KB
-                return Math.Round(bytes / 1024, 2);
+                return bytes / 1024;
             }
             else
             {
                 //Bytes
-                return Math.Round(bytes, 2);
+                return bytes;
             }
         }
 
@@ -268,7 +297,7 @@ namespace cry_locker
         /// </summary>
         /// <param name="bytes"></param>
         /// <returns></returns>
-        public static string DataSizePostFix(double bytes)
+        public static string DataSizePostFix(long bytes)
         {
             if (bytes >= 1125899906842624)
             {
@@ -417,32 +446,49 @@ namespace cry_locker
             return RandomNumberGenerator.GetBytes(bytes);
         }
 
-        private static void Encrypt(string path, bool isFolder)
-		{
-            DirectoryInfo? dir = null;
-            FileInfo? file = null;
-			if (isFolder)
-			{
-                dir = new(path);
-			}else
-			{
-                file = new(path);
-			}
+        private static void Encrypt(string path)
+        {
+            bool isFolder = false;
+            //DirectoryInfo? dir = null;
+            //FileInfo? file = null;
 
-            if ((dir != null && dir.Exists) || (file != null && file.Exists))
+            var type = EvalAction(path);
+
+            if (type == EvalType.encrypt_dir || type == EvalType.encrypt_file)
             {
+                if (type == EvalType.encrypt_dir)
+                    isFolder = true;
+
                 //Scan selected directory and sub dirs
                 Console.Clear();
                 Console.WriteLine("Discovering Files!...");
-                DirManager DM = new(dir);
+                
+                DirManager DM;
+                //Setup locker
+                Locker locker = new();
+                HashConfig hc = new(isFolder, GenerateRandomBytes());
+                locker.LockerConfig = hc;
+                if (isFolder)
+                {
+                    var dir = new DirectoryInfo(path);
+                    locker.GenerateLocker(dir.FullName);
+                    DM = new(dir);
+                }
+                else
+                {
+                    var file = new FileInfo(path);
+                    locker.GenerateLocker(file.FullName);
+                    DM = new(file);
+                }
 
-                //Ask for password
-                Console.Clear();
+				//Ask for password
+				#region Password
+				Console.Clear();
 
-                string password = "password";
+                string password = "";
 				bool badPassword = true;
                 Console.CursorVisible = true;
-                /*while (badPassword)
+				while (badPassword)
 				{
 					Console.Write("Password:");
 					string p1 = "";
@@ -509,44 +555,45 @@ namespace cry_locker
 						Console.Clear();
 						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 10 (max 256)");
 					}
-				}*/
+				}
+				#endregion
 
 				Console.Clear();
                 Console.CursorVisible = false;
                 Console.WriteLine("Generating key...");
 
-                //Setup locker
-                Locker locker = new();
+                
 
                 //Setup config
-                HashConfig hc = new(/*GenerateRandomBytes()*/);
-
-                //HashConfig hc = new();
-                locker.LockerConfig = hc;
-                locker.GenerateLocker(dir.FullName);
+                
+                //locker.GenerateLocker((isFolder) ? dir.FullName:file.FullName);
                 locker.Key = GenerateKey(password, hc);
 
+                //Clear password from RAM
                 password = null;
                 GC.Collect();
 
                 //Begin encryption
+
                 while (!DM.IsLoaded())
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write($"{GetLoading()} Discovering files...");
+                    Console.Write($"{GetLoading()} Discovering file(s)...");
                     Thread.Sleep(250);
                 }
 
-                new Thread(() => DM.EncryptFiles(locker)).Start();
+                new Thread(() => DM.Encrypt(locker)).Start();
 
                 //Wait for encryption
                 Console.Clear();
                 while (!DM.IsEncrypted())
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write($"{GetLoading()} Encrypted:{DM._encryptCount}/{DM.GetFiles().Count - DM._failed.Count}");
+                    var fi = new FileInfo(locker.LockerFile.FullName);
+                    Console.Write($"{GetLoading()} Encrypting: {Math.Round(((decimal)fi.Length / (decimal)DM._totalBytes) * 100, 2)}%");
                     Thread.Sleep(250);
                 }
+				
 
                 //Check hashing
                 Console.Clear();
@@ -556,11 +603,11 @@ namespace cry_locker
                     Console.WriteLine($"{GetLoading()} Computing Hashes...");
                     Thread.Sleep(250);
                 }*/
-                
+
 
                 var failed = DM._failed;
-                var total = DM.GetFiles().Count;
-                var size = DM._root._size;
+                var total = DM.GetFileCount();
+                var size = DM._totalBytes;
                 var encryptionTime = DM._encryptionTime;
                 locker = null;
                 DM = null;
@@ -572,48 +619,51 @@ namespace cry_locker
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-					foreach (var f in failed)
-					{
+                    foreach (var f in failed)
+                    {
                         Console.WriteLine($"\n{f._file._path}{f._file._name}");
                         Console.WriteLine(f._exception.Message);
-					}
-                    Console.WriteLine($"\nAttempted to encrypt {total} files, {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(size / (encryptionTime / 1000))} {DataSizePostFix(size / (encryptionTime / 1000))}/s), however {failed.Count} failed!");
+                    }
+                    Console.WriteLine($"\nAttempted to encrypt {total} file(s), {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter((long)(size / (encryptionTime / 1000)))} {DataSizePostFix((long)(size / (encryptionTime / 1000)))}/s), however {failed.Count} failed!");
                 }
                 else
                 {
                     Console.Clear();
                     string ms = "ms";
                     string s = "s";
-                    Console.WriteLine($"Encrypted {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter(size / (encryptionTime / 1000))} {DataSizePostFix(size / (encryptionTime / 1000))}/s)");
+                    Console.WriteLine($"Encrypted {DataSizeConverter(size)} {DataSizePostFix(size)} in {Math.Round(encryptionTime >= 1000 ? encryptionTime / 1000 : encryptionTime)}{(encryptionTime >= 1000 ? s : ms)}! ({DataSizeConverter((long)(size / (encryptionTime / 1000)))} {DataSizePostFix((long)(size / (encryptionTime / 1000)))}/s)");
                 }
+
                 GC.Collect();
                 Console.CursorVisible = true;
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey();
 
             }
-            else
-            {
-                Console.WriteLine($"\"{dir?.FullName}\" does not exit");
-                Console.WriteLine("Press any key to continue...");
-                Console.ReadKey();
-            }
-        }
+			else
+			{
+				Console.WriteLine($"\"{path}\" does not exit. Please try again.");
+				Console.WriteLine("Press any key to continue...");
+				Console.ReadKey();
+			}
+		}
 
         private static void Decrypt(string path)
 		{
             Console.Clear();
-            if (path != "" && path != null)
+            //DirectoryInfo? dir = null;
+            //FileInfo? file = null;
+
+			if (EvalAction(path) == EvalType.decrypt)
             {
                 FileInfo file = new(path);
 
-                if (file.Exists)
-                {
-                    //Ask for password
-                    Console.Write("Password:");
-                    string password = "password";
+				//Ask for password
+				#region password
+				Console.Write("Password:");
+                    string password = "AnnieCamTess1231@";
 
-                    /*ConsoleKey k;
+					/*ConsoleKey k;
 					do
 					{
 						var keyInfo = Console.ReadKey(true);
@@ -632,70 +682,82 @@ namespace cry_locker
 					} while (k != ConsoleKey.Enter);
 
 					password = password.Trim();*/
+				#endregion
 
-					Console.Clear();
-                    Console.WriteLine("Generating key...");
+				Console.Clear();
+                Console.WriteLine("Generating key...");
 
-                    string name = Regex.Replace(file.FullName, "[.]cry_locker$", "_decrypted", RegexOptions.IgnoreCase);
-                    DirManager.IsDecrypted = false;
+                    
+                DirManager.IsDecrypted = false;
 
-                    //Setup locker
-                    Locker locker = new(file);
 
-                    locker.LoadConfig();
-                    locker.Key = GenerateKey(password, locker.LockerConfig);
-					if (locker.LoadManifest() == null)
-					{
+
+                //Setup locker
+                Locker locker = new(file);
+
+                locker.LoadConfig();
+                locker.Key = GenerateKey(password, locker.LockerConfig);
+                if (locker.LockerConfig.IsArchive)
+                {
+                    if (locker.LoadManifest() == null)
+                    {
                         Console.Clear();
                         Console.WriteLine("Failed to load locker! Please check your password and try again!");
                         Console.WriteLine("Press any key to continue...");
                         Console.ReadKey();
                         return;
-					}
-
-                    //Setup output dir and start decrypt
-                    var outputDir = Directory.CreateDirectory(name);
-                    new Thread(() => DirManager.DecryptFiles(locker, outputDir)).Start();
-
-                    Console.Clear();
-
-                    Console.CursorVisible = false;
-                    while (!DirManager.IsDecrypted)
-                    {
-                        Console.SetCursorPosition(0, Console.CursorTop);
-                        Console.Write($"{GetLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
-                        Thread.Sleep(250);
-                        if (DirManager.DecryptFailed && DirManager.DecryptFailReason != null)
-                        {
-                            Console.Clear();
-                            Console.WriteLine("Decryption failed with reason:");
-                            Console.WriteLine(DirManager.DecryptFailReason);
-                            Console.WriteLine("Press any key to continue...");
-                            outputDir.Delete(true);
-                            Console.ReadKey();
-                            break;
-                        }
                     }
-                    Console.CursorVisible = true;
-                    Console.Clear();
-                    OpenFolder(outputDir.FullName);
                 }
-                else
+
+                string name = Regex.Replace(file.FullName, $"[.]{extention}$", "", RegexOptions.IgnoreCase);
+                int index = 0;
+                while (File.Exists(name) || Directory.Exists(name))
                 {
-                    Console.WriteLine($"File \"{path}\" doesn't exit");
-                    Console.WriteLine("Press any key to continue...");
-                    Console.ReadKey();
+                    index++;
+                    if (index <= 1)
+                        name = Regex.Replace(file.FullName, $"[.]{extention}$", "_decrypted", RegexOptions.IgnoreCase);
+                    else name = Regex.Replace(file.FullName, $"[.]{extention}$", $"_decrypted({index})", RegexOptions.IgnoreCase);
                 }
+
+
+                //Setup output dir and start decrypt
+                DirectoryInfo? outputDir = null;
+                if (locker.LockerConfig.IsArchive)
+                    outputDir = Directory.CreateDirectory(name);
+                new Thread(() => DirManager.DecryptFiles(locker, name)).Start();
+
+                Console.Clear();
+
+                Console.CursorVisible = false;
+                while (!DirManager.IsDecrypted)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"{GetLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
+                    Thread.Sleep(250);
+                    if (DirManager.DecryptFailed && DirManager.DecryptFailReason != null)
+                    {
+                        Console.Clear();
+                        Console.WriteLine("Decryption failed with reason:");
+                        Console.WriteLine(DirManager.DecryptFailReason);
+                        Console.WriteLine("Press any key to continue...");
+                        if (outputDir != null)
+                            outputDir.Delete(true);
+                        Console.ReadKey();
+                        break;
+                    }
+                }
+                Console.CursorVisible = true;
+                Console.Clear();
+
+                if(outputDir != null)
+                    OpenFolder(outputDir.FullName);
             }
             else
             {
-                Console.WriteLine("Path required!");
+                Console.WriteLine($"File \"{path}\" doesn't exit or is not a locker, please try again.");
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey();
             }
-
-
-
         }
         
     }

@@ -4,27 +4,27 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text.Json;
 using System.ComponentModel;
+using System.Text.RegularExpressions;
+using cry_locker;
 
 public class DirManager
 {
-	public Dir _root { get; private set; }
+	public Dir? _root { get; private set; }
+	public FileInfo? _target { get; private set; }
 	private bool _isEncrypted;
-	private static DirectoryInfo? DecryptFolder;
 
-	public DirManager(DirectoryInfo root)
+	public DirManager(DirectoryInfo dir)
 	{
-		DecryptFolder = null;
-		_root = new Dir(this, root);
+		_root = new Dir(this, dir);
+	}
+	public DirManager(FileInfo file)
+	{
+		_target = file;
 	}
 
 	public bool IsLoaded()
 	{
-		return _root.IsLoaded();
-	}
-
-	public bool IsHashed()
-	{
-		return _root.IsHashed();
+		return (_root == null) ? true:_root.IsLoaded();
 	}
 
 	public bool IsEncrypted()
@@ -32,12 +32,23 @@ public class DirManager
 		return _isEncrypted;
 	}
 
-	public List<OurFile> GetFiles()
+	private List<OurFile> GetFiles()
 	{
+		if(_target != null)
+		{
+			var temp = new List<OurFile>();
+			temp.Add(new OurFile(_target, this));
+			return temp;
+		}
 		return _root.GetFiles();
 	}
 
-	public static DirectoryInfo GetDecryptFolder()
+	public int GetFileCount()
+	{
+		return GetFiles().Count;
+	}
+
+/*	public static DirectoryInfo GetDecryptFolder()
 	{
 		if (DecryptFolder == null)
 			throw new NullReferenceException("_decryptFolder was never set!");
@@ -48,18 +59,34 @@ public class DirManager
 		if (!folder.Exists)
 			throw new Exception($"{folder.FullName} does not exist!");
 		DecryptFolder = folder;
-	}
+	}*/
 
-	public int _encryptCount = 0;
+	//public int _encryptCount = 0;
+	public long _totalBytes = 1000;
 	public double _encryptionTime { get; private set; }
 	public List<FailedItem> _failed = new List<FailedItem>();
-	public void EncryptFiles(Locker locker)
+	public void Encrypt(Locker locker)
 	{
+		List<OurFile> files = GetFiles();
+
 		//Reset vars
-		_encryptCount = 0;
+		if (!locker.LockerConfig.IsArchive)
+		{
+			_totalBytes = _target.Length;
+		}
+		else
+		{
+			_totalBytes = files[0]._info.Length;
+			for (int fi = 1; fi < files.Count; fi++)
+			{
+				_totalBytes += files[fi]._info.Length;
+			}
+		}
+
+		//_encryptCount = 0;
 		_failed = new List<FailedItem>();
 
-		List<OurFile> files = _root.GetFiles();
+		
 
 		if (files.Count > int.MaxValue)
 		{
@@ -104,15 +131,18 @@ public class DirManager
 		_encryptionTime = sw.Elapsed.TotalMilliseconds;
 
 		_isEncrypted = true;
+		/*
+				while (!IsHashed())
+				{
+					//Hashing isn't complete
+					Thread.Sleep(1);
+				}*/
 
-		while (!IsHashed())
+		if (locker.LockerConfig.IsArchive)
 		{
-			//Hashing isn't complete
-			Thread.Sleep(1);
+			locker.LockerManifest = GenerateManifest();
+			locker.WriteManifest();
 		}
-
-		locker.LockerManifest = GenerateManifest();
-		locker.WriteManifest();
 	}
 
 	public static int Decrypted;
@@ -120,58 +150,104 @@ public class DirManager
 	public static bool IsDecrypted;
 	public static bool DecryptFailed;
 	public static string? DecryptFailReason;
-	public static void DecryptFiles(Locker locker, DirectoryInfo outputDir)
+	public static void DecryptFiles(Locker locker, string name)
 	{
 		IsDecrypted = false;
 		Decrypted = 0;
 		DecryptFailed = false;
 		DecryptFailReason = "";
 
-		if (!outputDir.Exists)
-			throw new Exception($"\"{outputDir.FullName}\" does not exist!");
-
-
-		var man = locker.LockerManifest;
-
-		ToDecrypt = man.GetItems().Count;
-
-		foreach (var item in man)
+		if (locker.LockerConfig.IsArchive)
 		{
+			Manifest man = locker.LockerManifest;
+			ToDecrypt = man.GetItems().Count;
+
+
+			var outputDir = Directory.CreateDirectory(name);
+
+			foreach (var item in man)
+			{
+				try
+				{
+					using FileStream fRead = File.OpenRead(locker.GetPath());
+					using BufferedStream bRead = new(fRead);
+
+					var dir = Directory.CreateDirectory($"{outputDir.FullName}/{item.Path}");
+
+					using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
+					using BufferedStream bWrite = new(fWrite);
+
+					bRead.Seek(man.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+
+					int bl = 0;
+					long overflows = 0;
+
+					int maxBufferSize = (256 * 1024); //256 KB (max is 2GB)
+
+					if (item.ByteLength > maxBufferSize)
+					{
+						overflows = item.ByteLength / maxBufferSize;
+						bl = (int)(item.ByteLength - (overflows * maxBufferSize));
+					}
+					else bl = (int)item.ByteLength;
+
+					using CryptoStream cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write);
+					for (int i = 0; i <= overflows; i++)
+					{
+						int toWrite = bl;
+
+						if (i < overflows)
+							toWrite = maxBufferSize;
+
+						byte[] buffer = new byte[toWrite];
+						bRead.Read(buffer, 0, buffer.Length);
+						cs.Write(buffer, 0, buffer.Length);
+					}
+				}
+				catch (Exception e)
+				{
+					DecryptFailReason = e.Message;
+					if (e.Message == "Padding is invalid and cannot be removed.")
+						DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
+					DecryptFailed = true;
+					break;
+				}
+
+				Decrypted++;
+			}
+		}
+		else
+		{
+			//FindLocker config ending token, then decrypt untill end of file
 			try
 			{
 				using FileStream fRead = File.OpenRead(locker.GetPath());
 				using BufferedStream bRead = new(fRead);
 
-				var dir = Directory.CreateDirectory($"{outputDir.FullName}/{item.Path}");
-
-				using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
-				using BufferedStream bWrite = new(fWrite);
-
-				bRead.Seek(man.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
-
-				int bl = 0;
-				int overflows = 0;
-
-				int maxBufferSize = (256 * 1024); //KB (max is 2GB)
-
-				if (item.ByteLength > maxBufferSize)
+				using BinaryReader br = new BinaryReader(bRead);
+				string pattern = "]";
+				byte[] bytes = new byte[pattern.Length];
+				for (long i = 0; i >= 0; i++)
 				{
-					overflows = (int)item.ByteLength / maxBufferSize;
-					bl = (int)item.ByteLength - (overflows * maxBufferSize);
-				}
-				else bl = (int)item.ByteLength;
+					//Shift bytes
+					//bytes = ShiftRight(bytes);
 
-				using CryptoStream cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write);
-				for (int i = 0; i <= overflows; i++)
-				{
-					int toWrite = bl;
+					bRead.Seek(i, SeekOrigin.Begin);
+					bytes[0] = br.ReadByte();
 
-					if (i < overflows)
-						toWrite = maxBufferSize;
+					//Check for header pattern
+					string s = Encoding.Default.GetString(bytes);
+					if (s.StartsWith(pattern))
+					{
+						bRead.Seek(i + pattern.Length, SeekOrigin.Begin);
 
-					byte[] buffer = new byte[toWrite];
-					bRead.Read(buffer, 0, buffer.Length);
-					cs.Write(buffer, 0, buffer.Length);
+						using var cs = new CryptoStream(bRead, locker.Key.CreateDecryptor(), CryptoStreamMode.Read);
+
+						using FileStream fWrite = File.Create(name);
+						using BufferedStream bWrite = new(fWrite);
+						cs.CopyTo(bWrite);
+						break;
+					}
 				}
 			}
 			catch (Exception e)
@@ -180,10 +256,7 @@ public class DirManager
 				if (e.Message == "Padding is invalid and cannot be removed.")
 					DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
 				DecryptFailed = true;
-				break;
 			}
-			
-			Decrypted++;
 		}
 		IsDecrypted = true;
 		GC.Collect();
@@ -308,7 +381,7 @@ public class Dir
 public class OurFile
 {
 	public FileInfo _info { get; private set; }
-	private Dir _parent;
+	private Dir? _parent;
 	//public string? _hash { get; private set; }
 	public long _byteLength { get; private set; }
 	public long _startingByte { get; private set; }
@@ -319,6 +392,7 @@ public class OurFile
 	public int _fileIndex { get; set; }
 	public string _path { get; private set; }
 	public string _name { get; private set; }
+	private DirManager _manager;
 	/*public string? _uuid { get; private set; }*/
 	//public bool _isComputed { get; private set; }
 
@@ -328,15 +402,27 @@ public class OurFile
 		_name = file.Name;
 		_parent = parent;
 		_path = parent.GetLocalPath();
+		_manager = parent._manager;
 		/*if (uuid == null)
 			uuid = Guid.NewGuid().ToString();
 		_uuid = uuid;*/
 		//ThreadPool.QueueUserWorkItem(Hash);
 		//Hash(null);
 	}
+	public OurFile(FileInfo file, DirManager manager)
+	{
+		_info = file;
+		_name = file.Name;
+		_path = "";
+		_manager = manager;
+	}
 
 	public string GetRelativePath()
 	{
+		if(_parent == null)
+		{
+			return $"{_info.Name}";
+		}
 		return $"{_parent.GetLocalPath()}\\{_info.Name}";
 	}
 
@@ -363,8 +449,6 @@ public class OurFile
 
 	public bool Encrypt(Locker locker)
 	{
-		var manager = _parent._manager;
-		
 		try
 		{
 			_startingByte = new FileInfo(locker.LockerFile.FullName).Length;
@@ -386,7 +470,7 @@ public class OurFile
 				//bRead.Close();
 				//cs.Close();
 				//Get a new fileinfo and check the length
-				_byteLength = (uint)(locker.getFileStream().Length - startingLength);
+				_byteLength = (long)(locker.getFileStream().Length - startingLength);
 			}
 			
 			
@@ -395,12 +479,12 @@ public class OurFile
 		{
 			var item = new FailedItem(this, e);
 			//if (!manager._failed.Contains(item))
-				manager._failed.Add(item);
+				_manager._failed.Add(item);
 			GC.Collect();
 			return false;
 		}
 		GC.Collect();
-		manager._encryptCount++;
+		//_manager._encryptCount++;
 		return true;
 	}
 
@@ -717,12 +801,13 @@ public class Locker
 		{
 			throw new NullReferenceException("LockerConfig cannot be null when Generating a locker");
 		}
-		string name = $"{fileName}.cry_locker";
+
+		string name = $"{Regex.Replace(fileName, $"[.](.*)$", "", RegexOptions.IgnoreCase)}.{CryLocker.extention}";
 		int index = 0;
-		while (new FileInfo(name).Exists)
+		while (File.Exists(name) || Directory.Exists(name))
 		{
 			index++;
-			name = $"{fileName}({index}).cry_locker";
+			name = $"{Regex.Replace(fileName, $"[.](.*)$", "", RegexOptions.IgnoreCase)}({index}).{CryLocker.extention}";
 		}
 
 		try
@@ -767,6 +852,8 @@ public class Locker
 
 	public Manifest? LoadManifest()
 	{
+		if (!LockerConfig.IsArchive)
+			throw new Exception("Manifest cannot be loaded on a non archive!");
 		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key);
 		return LockerManifest;
 	}
@@ -810,7 +897,7 @@ public class Locker
 				else
 				{
 					//Legacy locker
-					LockerConfig = new HashConfig(null);
+					LockerConfig = new HashConfig(false, null);
 					return LockerConfig;
 				}
 			}
@@ -829,11 +916,13 @@ public class HashConfig
 	public int DegreeOfParallelism { get; private set; }
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
+	public bool IsArchive { get; private set; }
 
 	//Changing these default values will break backwards compadibility!
 	//Default dop:16, ms:8192, its:40, salt:Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk")
-	public HashConfig(byte[] salt = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
+	public HashConfig(bool isArchive, byte[] salt, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
+		IsArchive = isArchive;
 		//Lockers without config headers are assumed to be legacy and will use the hard coded legay salt.
 		Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
 		DegreeOfParallelism = degreeOfParallelism;
