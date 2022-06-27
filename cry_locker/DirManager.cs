@@ -107,6 +107,8 @@ public class DirManager
 				f._fileIndex = i;
 				if(f.Encrypt(locker, debug))
 					i++;
+
+					
 				/*int fi = 0;
 				while (!f.Encrypt(locker))
 				{
@@ -142,6 +144,19 @@ public class DirManager
 		{
 			locker.LockerManifest = GenerateManifest();
 			locker.WriteManifest(debug);
+
+			//Debuging test
+			/*foreach (var item in locker.LockerManifest)
+			{
+				if(item.FileIndex > 0)
+				{
+					var mani = locker.LockerManifest.GetItemByIndex(item.FileIndex);
+					if(mani.StartingByte + mani.ByteLength != item.StartingByte - 1)
+					{
+						throw new Exception("Test failed!");
+					}
+				}
+			}*/
 		}
 	}
 
@@ -481,17 +496,21 @@ public class OurFile
 		}
 		_isComputed = true;
 	}*/
-
+	//private static long debug_startingLength = 0;
 	public bool Encrypt(Locker locker, bool debug = false)
 	{
 		try
 		{
+			//if(_fileIndex > 0)
 			_startingByte = new FileInfo(locker.LockerFile.FullName).Length;
+
+			//_startingByte = locker.LockerManifest
 			using (FileStream fileRead = _info.OpenRead())
 			{
-				long startingLength;
+				//long startingLength;
 				//TODO instead of opening and closing the lockerFile for ever file being encrypted, just access a always open filestream and write to it
-				startingLength = locker.getFileStream().Length;
+				long startingLength = locker.getFileStream().Length;
+				//debug_startingLength = startingLength;
 					
 				using BufferedStream bRead = new(fileRead);
 				//using BufferedStream bWrite = new(fileWrite);
@@ -499,13 +518,14 @@ public class OurFile
 				if (debug)
 				{
 					StreamWriter sw = new StreamWriter(locker.getFileStream());
-					sw.Write("[file_start]");
+					sw.Write($"[file_start_{_fileIndex}]");
 					sw.Flush();
 					locker.getFileStream().Seek(0, SeekOrigin.End);
-					bRead.CopyTo(locker.getFileStream());
-					bRead.Close();
+					CryptoStream cs = new(bRead, locker.Key.CreateEncryptor(), CryptoStreamMode.Read);
+					cs.CopyTo(locker.getFileStream());
+					cs.Close();
 					locker.getFileStream().Seek(0, SeekOrigin.End);
-					sw.Write("[file_end]");
+					sw.Write($"[file_end_{_fileIndex}]");
 					sw.Close();
 				}
 				else
@@ -528,9 +548,11 @@ public class OurFile
 		}
 		catch (Exception e)
 		{
+			//var endLength = locker.getFileStream().Length;
 			var item = new FailedItem(this, e);
+			
 			//if (!manager._failed.Contains(item))
-				_manager._failed.Add(item);
+			_manager._failed.Add(item);
 			GC.Collect();
 			return false;
 		}
@@ -678,17 +700,21 @@ public class Manifest : IEnumerable<ManifestItem>
 						if (debug)
 						{
 							sr = new(buff);
+							string json_string = sr.ReadToEnd();
+
+							return Deserialize(json_string);
 						}
 						else
 						{
-							using var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
+							var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
 
 							sr = new(cs);
+							string json_string = sr.ReadToEnd();
+
+							return Deserialize(json_string);
 						}
 						
-						string json_string = sr.ReadToEnd();
-
-						return Deserialize(json_string);
+						
 					}
 				}
 			}

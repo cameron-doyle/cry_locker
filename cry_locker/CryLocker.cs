@@ -15,7 +15,7 @@ namespace cry_locker
         //private const int Iterations = 40;
         //private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
 
-        private static bool debug = true;
+        private static bool debug = false;
 
         private static Process? explorer;
         public const string extention = "cry_locker";
@@ -90,8 +90,10 @@ namespace cry_locker
             List<string> t_args = new();
             //t_args.Add("-h");
             //t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.bin");
+            //t_args.Add(@"C:\Users\Camer\Documents\test_projects");
             //t_args.Add(@"C:\Users\Camer\test");
-            t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.cry_locker");
+            //t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.cry_locker");
+            t_args.Add(@"C:\Users\Camer\Documents\sensitive.cry_locker");
             //t_args.Add(@"C:\Users\Camer\test.cry_locker");
             if (t_args.Count == 1)
 			{
