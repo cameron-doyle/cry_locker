@@ -750,7 +750,7 @@ namespace cry_locker
                     outputDir = Directory.CreateDirectory(name);
 
 
-                new Thread(() => DirManager.DecryptFiles(locker, name, false, debug)).Start();
+                new Thread(() => DirManager.DecryptFiles(locker, name, debug)).Start();
 
                 Console.Clear();
 

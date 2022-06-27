@@ -152,7 +152,7 @@ public class DirManager
 	public static long TotalSize;
 	public static string? DecryptingPath;
 	public static string? DecryptFailReason;
-	public static void DecryptFiles(Locker locker, string name, bool useIndex = true, bool debug = false)
+	public static void DecryptFiles(Locker locker, string name, bool debug = false)
 	{
 		IsDecrypted = false;
 		Decrypted = 0;
@@ -181,7 +181,8 @@ public class DirManager
 					using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
 					using BufferedStream bWrite = new(fWrite);
 
-					bRead.Seek(man.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+					//bRead.Seek(man.GetStartingByte(item.FileIndex), SeekOrigin.Begin);
+					bRead.Seek(item.StartingByte, SeekOrigin.Begin);
 
 					int bl = 0;
 					long overflows = 0;
