@@ -21,6 +21,14 @@ namespace cry_locker
         public const string extention = "cry_locker";
         static void Main(string[] args)
         {
+
+			/*foreach (var item in args)
+			{
+                Console.WriteLine(item);
+			}
+            Console.ReadLine();
+            return;*/
+
             string loc = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}";
             loc = new DirectoryInfo(loc).FullName;
 			/*var token = Regex.Match(loc, "[%]user[%]", RegexOptions.IgnoreCase);
@@ -87,29 +95,30 @@ namespace cry_locker
                 }
             }
             else */
-            List<string> t_args = new();
+            //List<string> t_args = new();
             //t_args.Add("-h");
             //t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.bin");
             //t_args.Add(@"C:\Users\Camer\Documents\test_projects");
             //t_args.Add(@"C:\Users\Camer\test");
             //t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.cry_locker");
-            t_args.Add(@"C:\Users\Camer\Documents\sensitive.cry_locker");
+            //t_args.Add(@"C:\Users\Camer\Documents\sensitive.cry_locker");
+            //t_args.Add(@"C:\Users\Camer\Documents\sensitive");
             //t_args.Add(@"C:\Users\Camer\test.cry_locker");
-            if (t_args.Count == 1)
+            if (args.Length == 1)
 			{
-				switch (EvalAction(t_args[0]))
+				switch (EvalAction(args[0]))
 				{
                     case EvalType.decrypt:
                         cmd = "decrypt";
-                        path = t_args[0];
+                        path = args[0];
                         break;
                     case EvalType.encrypt_dir:
                         cmd = "encrypt";
-                        path = t_args[0];
+                        path = args[0];
                         break;
                     case EvalType.encrypt_file:
                         cmd = "encrypt";
-                        path = t_args[0];
+                        path = args[0];
                         break;
                 }
 
@@ -127,10 +136,10 @@ namespace cry_locker
                 }
                 Console.WriteLine(path);*/
             }
-            else if(t_args.Count >= 2)
+            else if(args.Length >= 2)
 			{
-                cmd = t_args[0];
-                path = t_args[1];
+                cmd = GetCmd(args[0]);
+                path = args[1];
             }
 				/*else
 				{
