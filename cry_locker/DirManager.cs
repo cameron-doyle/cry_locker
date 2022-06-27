@@ -65,7 +65,7 @@ public class DirManager
 	public long _totalBytes = 1000;
 	public double _encryptionTime { get; private set; }
 	public List<FailedItem> _failed = new List<FailedItem>();
-	public void Encrypt(Locker locker)
+	public void Encrypt(Locker locker, bool debug = false)
 	{
 		List<OurFile> files = GetFiles();
 
@@ -105,7 +105,8 @@ public class DirManager
 			if (f._info.Length <= long.MaxValue)
 			{
 				f._fileIndex = i;
-				f.Encrypt(locker);
+				if(f.Encrypt(locker, debug))
+					i++;
 				/*int fi = 0;
 				while (!f.Encrypt(locker))
 				{
@@ -119,7 +120,6 @@ public class DirManager
 					}
 					fi++;
 				}*/
-				i++;
 			}
 			else
 			{
@@ -141,7 +141,7 @@ public class DirManager
 		if (locker.LockerConfig.IsArchive)
 		{
 			locker.LockerManifest = GenerateManifest();
-			locker.WriteManifest();
+			locker.WriteManifest(debug);
 		}
 	}
 
@@ -149,13 +149,17 @@ public class DirManager
 	public static int ToDecrypt;
 	public static bool IsDecrypted;
 	public static bool DecryptFailed;
+	public static long TotalSize;
+	public static string? DecryptingPath;
 	public static string? DecryptFailReason;
-	public static void DecryptFiles(Locker locker, string name)
+	public static void DecryptFiles(Locker locker, string name, bool useIndex = true, bool debug = false)
 	{
 		IsDecrypted = false;
 		Decrypted = 0;
 		DecryptFailed = false;
 		DecryptFailReason = "";
+		TotalSize = 1000;
+		DecryptingPath = "";
 
 		if (locker.LockerConfig.IsArchive)
 		{
@@ -171,7 +175,7 @@ public class DirManager
 				{
 					using FileStream fRead = File.OpenRead(locker.GetPath());
 					using BufferedStream bRead = new(fRead);
-
+					TotalSize = fRead.Length;
 					var dir = Directory.CreateDirectory($"{outputDir.FullName}/{item.Path}");
 
 					using FileStream fWrite = File.Create($"{dir.FullName}/{item.Name}");
@@ -191,7 +195,18 @@ public class DirManager
 					}
 					else bl = (int)item.ByteLength;
 
-					using CryptoStream cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write);
+					CryptoStream? cs = null;
+					StreamWriter? sw = null;
+					if (debug)
+					{
+						sw = new(bWrite);
+					}
+					else
+					{
+						cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write); //Padding is invalid and cannot be removed...
+					}
+
+					
 					for (int i = 0; i <= overflows; i++)
 					{
 						int toWrite = bl;
@@ -201,8 +216,17 @@ public class DirManager
 
 						byte[] buffer = new byte[toWrite];
 						bRead.Read(buffer, 0, buffer.Length);
-						cs.Write(buffer, 0, buffer.Length);
+						if (cs != null)
+							cs.Write(buffer, 0, buffer.Length);
+						else
+						{
+							sw.Write(Encoding.Default.GetString(buffer));
+						}
 					}
+					if (sw != null)
+						sw.Close();
+					if (cs != null)
+						cs.Close();
 				}
 				catch (Exception e)
 				{
@@ -223,7 +247,7 @@ public class DirManager
 			{
 				using FileStream fRead = File.OpenRead(locker.GetPath());
 				using BufferedStream bRead = new(fRead);
-
+				TotalSize = fRead.Length;
 				using BinaryReader br = new BinaryReader(bRead);
 				string pattern = "]";
 				byte[] bytes = new byte[pattern.Length];
@@ -243,7 +267,17 @@ public class DirManager
 
 						using var cs = new CryptoStream(bRead, locker.Key.CreateDecryptor(), CryptoStreamMode.Read);
 
-						using FileStream fWrite = File.Create(name);
+						string fname = locker.LockerConfig.FileName;
+						var sname = fname.Split(".");
+						int index = 0;
+						while (File.Exists($"{locker.GetDirectoryPath()}/{fname}") || Directory.Exists($"{locker.GetDirectoryPath()}/{fname}"))
+						{
+							index++;
+							fname = $"{sname[0]}({index}).{sname[1]}";
+						}
+						string path = $"{locker.GetDirectoryPath()}/{fname}";
+						using FileStream fWrite = File.Create(path);
+						DecryptingPath = path;
 						using BufferedStream bWrite = new(fWrite);
 						cs.CopyTo(bWrite);
 						break;
@@ -447,7 +481,7 @@ public class OurFile
 		_isComputed = true;
 	}*/
 
-	public bool Encrypt(Locker locker)
+	public bool Encrypt(Locker locker, bool debug = false)
 	{
 		try
 		{
@@ -461,8 +495,24 @@ public class OurFile
 				using BufferedStream bRead = new(fileRead);
 				//using BufferedStream bWrite = new(fileWrite);
 				locker.getFileStream().Seek(0, SeekOrigin.End);
-				using CryptoStream cs = new(bRead, locker.Key.CreateEncryptor(), CryptoStreamMode.Read);
-				cs.CopyTo(locker.getFileStream());
+				if (debug)
+				{
+					StreamWriter sw = new StreamWriter(locker.getFileStream());
+					sw.Write("[file_start]");
+					sw.Flush();
+					locker.getFileStream().Seek(0, SeekOrigin.End);
+					bRead.CopyTo(locker.getFileStream());
+					bRead.Close();
+					locker.getFileStream().Seek(0, SeekOrigin.End);
+					sw.Write("[file_end]");
+					sw.Close();
+				}
+				else
+				{
+					using CryptoStream cs = new(bRead, locker.Key.CreateEncryptor(), CryptoStreamMode.Read);
+					cs.CopyTo(locker.getFileStream());
+				}
+
 				//bRead.CopyTo(cs);
 				//_byteLength = bRead.Length;
 				//bRead.Flush();
@@ -551,7 +601,7 @@ public class Manifest : IEnumerable<ManifestItem>
 		return _items;
 	}
 
-	public void WriteToDisk(Locker locker, Aes key)
+	public void WriteToDisk(Locker locker, Aes key, bool debug = false)
 	{
 		try
 		{
@@ -561,13 +611,28 @@ public class Manifest : IEnumerable<ManifestItem>
 			sw.Flush(); //Need to flush before seeking to make sure the header is writen
 
 			locker.getFileStream().Seek(0, SeekOrigin.End);
-			CryptoStream cs = new CryptoStream(locker.getFileStream(), key.CreateEncryptor(), CryptoStreamMode.Write);
+			if (debug)
+			{
+				StreamWriter csWriter = new StreamWriter(locker.getFileStream());
 
-			StreamWriter csWriter = new StreamWriter(cs);
-			csWriter.Write(Serialize());
+				//Encode to avoid reading issues
+				//byte[] bytes = Encoding.Default.GetBytes(Serialize());
+				//string hex = Convert.ToHexString(bytes).ToLower();
+				csWriter.Write(Serialize());
 
-			csWriter.Close();
-			cs.Close();
+				csWriter.Close();
+			}
+			else
+			{
+				CryptoStream cs = new CryptoStream(locker.getFileStream(), key.CreateEncryptor(), CryptoStreamMode.Write);
+
+				StreamWriter csWriter = new StreamWriter(cs);
+				csWriter.Write(Serialize());
+
+				csWriter.Close();
+				cs.Close();
+			}
+			
 			locker.closeFileStream();
 		}
 		catch (Exception e)
@@ -580,7 +645,7 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	}
 
-	public static Manifest? LoadFromDisk(FileInfo file, Aes key)
+	public static Manifest? LoadFromDisk(FileInfo file, Aes key, bool debug = false)
 	{
 		try
 		{
@@ -608,9 +673,18 @@ public class Manifest : IEnumerable<ManifestItem>
 					{
 						buff.Seek(i + pattern.Length, SeekOrigin.Begin);
 
-						using var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
+						StreamReader? sr = null;
+						if (debug)
+						{
+							sr = new(buff);
+						}
+						else
+						{
+							using var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
 
-						StreamReader sr = new(cs);
+							sr = new(cs);
+						}
+						
 						string json_string = sr.ReadToEnd();
 
 						return Deserialize(json_string);
@@ -770,7 +844,7 @@ public class Locker
 
 	public ref BufferedStream getFileStream()
 	{
-		if(lockerStream == null || lockerBuffer == null)
+		if(lockerStream == null || (!lockerStream.CanWrite && !lockerStream.CanRead && !lockerStream.CanSeek))
 		{
 			lockerStream = File.OpenWrite(GetPath());
 			lockerBuffer = new BufferedStream(lockerStream);
@@ -785,13 +859,6 @@ public class Locker
 			lockerBuffer.Flush();
 			lockerStream.Flush();
 			lockerBuffer.Close();
-			lockerStream = null;
-			lockerBuffer = null;
-		}
-		else
-		{
-			lockerStream = null;
-			lockerBuffer = null;
 		}
 	}
 
@@ -842,19 +909,24 @@ public class Locker
 		return LockerFile.FullName;
 	}
 
+	public string GetDirectoryPath()
+	{
+		return LockerFile.DirectoryName;
+	}
+
 	/// <summary>
 	/// Completes the encryption process by saving the manifest to the end of the file.
 	/// </summary>
-	public void WriteManifest()
+	public void WriteManifest(bool debug = false)
 	{
-		LockerManifest.WriteToDisk(this, Key);
+		LockerManifest.WriteToDisk(this, Key, debug);
 	}
 
-	public Manifest? LoadManifest()
+	public Manifest? LoadManifest(bool debug = false)
 	{
 		if (!LockerConfig.IsArchive)
 			throw new Exception("Manifest cannot be loaded on a non archive!");
-		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key);
+		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key, debug);
 		return LockerManifest;
 	}
 
@@ -917,12 +989,14 @@ public class HashConfig
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
 	public bool IsArchive { get; private set; }
+	public string? FileName { get; private set; }
 
 	//Changing these default values will break backwards compadibility!
 	//Default dop:16, ms:8192, its:40, salt:Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk")
-	public HashConfig(bool isArchive, byte[] salt, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
+	public HashConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
 		IsArchive = isArchive;
+		FileName = fileName;
 		//Lockers without config headers are assumed to be legacy and will use the hard coded legay salt.
 		Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
 		DegreeOfParallelism = degreeOfParallelism;

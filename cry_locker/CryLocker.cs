@@ -15,6 +15,8 @@ namespace cry_locker
         //private const int Iterations = 40;
         //private const string Salt = "jhkbdshkjGBkfgaqwkbjk";
 
+        private static bool debug = true;
+
         private static Process? explorer;
         public const string extention = "cry_locker";
         static void Main(string[] args)
@@ -87,10 +89,10 @@ namespace cry_locker
             else */
             List<string> t_args = new();
             //t_args.Add("-h");
+            //t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.bin");
             //t_args.Add(@"C:\Users\Camer\test");
-            //t_args.Add(@"C:\Users\Camer\test\tfile.mkv");
+            t_args.Add(@"C:\Users\Camer\Documents\test_projects\react_app\node_modules\.cry_locker");
             //t_args.Add(@"C:\Users\Camer\test.cry_locker");
-            t_args.Add(@"C:\Users\Camer\test\tfile.cry_locker");
             if (t_args.Count == 1)
 			{
 				switch (EvalAction(t_args[0]))
@@ -461,25 +463,9 @@ namespace cry_locker
 
                 //Scan selected directory and sub dirs
                 Console.Clear();
-                Console.WriteLine("Discovering Files!...");
                 
-                DirManager DM;
-                //Setup locker
-                Locker locker = new();
-                HashConfig hc = new(isFolder, GenerateRandomBytes());
-                locker.LockerConfig = hc;
-                if (isFolder)
-                {
-                    var dir = new DirectoryInfo(path);
-                    locker.GenerateLocker(dir.FullName);
-                    DM = new(dir);
-                }
-                else
-                {
-                    var file = new FileInfo(path);
-                    locker.GenerateLocker(file.FullName);
-                    DM = new(file);
-                }
+
+
 
 				//Ask for password
 				#region Password
@@ -562,11 +548,31 @@ namespace cry_locker
                 Console.CursorVisible = false;
                 Console.WriteLine("Generating key...");
 
-                
+                //Setup locker and Direcotry Manager
+                DirManager DM;
+                Locker locker = new();
+
+                string? ex = null;
+                if (!isFolder)
+                    ex = new FileInfo(path).Name;
+                HashConfig hc = new(isFolder, GenerateRandomBytes(), ex);
+                locker.LockerConfig = hc;
+                if (isFolder)
+                {
+                    var dir = new DirectoryInfo(path);
+                    locker.GenerateLocker(dir.FullName);
+                    DM = new(dir);
+                }
+                else
+                {
+                    var file = new FileInfo(path);
+                    locker.GenerateLocker(file.FullName);
+                    DM = new(file);
+                }
 
                 //Setup config
+
                 
-                //locker.GenerateLocker((isFolder) ? dir.FullName:file.FullName);
                 locker.Key = GenerateKey(password, hc);
 
                 //Clear password from RAM
@@ -582,7 +588,7 @@ namespace cry_locker
                     Thread.Sleep(250);
                 }
 
-                new Thread(() => DM.Encrypt(locker)).Start();
+                new Thread(() => DM.Encrypt(locker, debug)).Start();
 
                 //Wait for encryption
                 Console.Clear();
@@ -648,6 +654,24 @@ namespace cry_locker
 			}
 		}
 
+        public static long DirSize(DirectoryInfo d)
+        {
+            long size = 0;
+            // Add file sizes.
+            FileInfo[] fis = d.GetFiles();
+            foreach (FileInfo fi in fis)
+            {
+                size += fi.Length;
+            }
+            // Add subdirectory sizes.
+            DirectoryInfo[] dis = d.GetDirectories();
+            foreach (DirectoryInfo di in dis)
+            {
+                size += DirSize(di);
+            }
+            return size;
+        }
+
         private static void Decrypt(string path)
 		{
             Console.Clear();
@@ -661,33 +685,33 @@ namespace cry_locker
 				//Ask for password
 				#region password
 				Console.Write("Password:");
-                    string password = "AnnieCamTess1231@";
+                    string password = "";
 
-					/*ConsoleKey k;
-					do
+				ConsoleKey k;
+				do
+				{
+					var keyInfo = Console.ReadKey(true);
+					k = keyInfo.Key;
+
+					if (k == ConsoleKey.Backspace && password.Length > 0)
 					{
-						var keyInfo = Console.ReadKey(true);
-						k = keyInfo.Key;
+						Console.Write("\b \b");
+						password = password[0..^1];
+					}
+					else if (!char.IsControl(keyInfo.KeyChar))
+					{
+						Console.Write("*");
+						password += keyInfo.KeyChar;
+					}
+				} while (k != ConsoleKey.Enter);
 
-						if (k == ConsoleKey.Backspace && password.Length > 0)
-						{
-							Console.Write("\b \b");
-							password = password[0..^1];
-						}
-						else if (!char.IsControl(keyInfo.KeyChar))
-						{
-							Console.Write("*");
-							password += keyInfo.KeyChar;
-						}
-					} while (k != ConsoleKey.Enter);
-
-					password = password.Trim();*/
+				password = password.Trim();
 				#endregion
 
 				Console.Clear();
-                Console.WriteLine("Generating key...");
+                Console.WriteLine("Loading Locker...");
 
-                    
+
                 DirManager.IsDecrypted = false;
 
 
@@ -699,7 +723,7 @@ namespace cry_locker
                 locker.Key = GenerateKey(password, locker.LockerConfig);
                 if (locker.LockerConfig.IsArchive)
                 {
-                    if (locker.LoadManifest() == null)
+                    if (locker.LoadManifest(debug) == null)
                     {
                         Console.Clear();
                         Console.WriteLine("Failed to load locker! Please check your password and try again!");
@@ -724,16 +748,32 @@ namespace cry_locker
                 DirectoryInfo? outputDir = null;
                 if (locker.LockerConfig.IsArchive)
                     outputDir = Directory.CreateDirectory(name);
-                new Thread(() => DirManager.DecryptFiles(locker, name)).Start();
+
+
+                new Thread(() => DirManager.DecryptFiles(locker, name, false, debug)).Start();
 
                 Console.Clear();
 
                 Console.CursorVisible = false;
                 while (!DirManager.IsDecrypted)
                 {
-                    Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write($"{GetLoading()} Decrypted:{DirManager.Decrypted}/{DirManager.ToDecrypt}");
                     Thread.Sleep(250);
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    if (locker.LockerConfig.IsArchive)
+                    {
+                        var current = DirSize(new DirectoryInfo(name));
+                        Console.Write($"{GetLoading()} Decrypting:{Math.Round(((decimal)current / (decimal)DirManager.TotalSize) * 100, 2)}%");
+                    }
+					else
+					{
+                        if (DirManager.DecryptingPath != "")
+                        {
+                            FileInfo decryption_file = new FileInfo(DirManager.DecryptingPath);
+                            //$"{GetLoading()} Encrypting: {Math.Round(((decimal)fi.Length / (decimal)DM._totalBytes) * 100, 2)}%"
+                            Console.Write($"{GetLoading()} Decrypting:{Math.Round(((decimal)decryption_file.Length / (decimal)DirManager.TotalSize) * 100, 2)}%");
+                        }
+                    }
+                    
                     if (DirManager.DecryptFailed && DirManager.DecryptFailReason != null)
                     {
                         Console.Clear();
@@ -749,7 +789,7 @@ namespace cry_locker
                 Console.CursorVisible = true;
                 Console.Clear();
 
-                if(outputDir != null)
+                if(outputDir != null && !DirManager.DecryptFailed)
                     OpenFolder(outputDir.FullName);
             }
             else
