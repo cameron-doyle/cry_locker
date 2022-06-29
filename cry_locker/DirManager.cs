@@ -509,33 +509,33 @@ public class OurFile
 
 			using (FileStream fileRead = Info.OpenRead())
 			{
-				long startingLength = locker.GetFileStream().Length;
+				long startingLength = locker.GetWriteStream().Length;
 					
 				using BufferedStream bRead = new(fileRead);
-				locker.GetFileStream().Seek(0, SeekOrigin.End);
+				locker.GetWriteStream().Seek(0, SeekOrigin.End);
 
 				if (debug)
 				{
 					//Write debug file header
-					StreamWriter sw = new StreamWriter(locker.GetFileStream());
+					StreamWriter sw = new StreamWriter(locker.GetWriteStream());
 					sw.Write($"[file_start]");
 					sw.Flush(); //Flush to ensure the data is writen before moving on.
 
-					locker.GetFileStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
-					bRead.CopyTo(locker.GetFileStream());
+					locker.GetWriteStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
+					bRead.CopyTo(locker.GetWriteStream());
 					bRead.Flush();
 
-					locker.GetFileStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
+					locker.GetWriteStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
 					sw.Write($"[file_end]");
 					sw.Close();
 				}
 				else
 				{
 					using CryptoStream cs = new(bRead, locker.GetEncryptor(), CryptoStreamMode.Read);
-					cs.CopyTo(locker.GetFileStream());
+					cs.CopyTo(locker.GetWriteStream());
 				}
 
-				Length = (long)(locker.GetFileStream().Length - startingLength);
+				Length = (long)(locker.GetWriteStream().Length - startingLength);
 			}
 			
 			
@@ -579,11 +579,10 @@ public class Manifest : IEnumerable<ManifestItem>
 		Items = list;
 	}
 
-	public ManifestItem GetItemByIndex(int index)
-	{
-		return Items[index];
-	}
-
+	/// <summary>
+	/// Gets manifest items
+	/// </summary>
+	/// <returns></returns>
 	public List<ManifestItem> GetItems()
 	{
 		return Items;
@@ -598,22 +597,22 @@ public class Manifest : IEnumerable<ManifestItem>
 	{
 		try
 		{
-			locker.GetFileStream().Seek(0, SeekOrigin.End);
-			StreamWriter sw = new StreamWriter(locker.GetFileStream());
+			locker.GetWriteStream().Seek(0, SeekOrigin.End);
+			StreamWriter sw = new StreamWriter(locker.GetWriteStream());
 			sw.Write("[manifest]");
 			sw.Flush(); //Need to flush before seeking to make sure the header is writen
 
-			locker.GetFileStream().Seek(0, SeekOrigin.End);
+			locker.GetWriteStream().Seek(0, SeekOrigin.End);
 			if (debug)
 			{
-				StreamWriter csWriter = new StreamWriter(locker.GetFileStream());
+				StreamWriter csWriter = new StreamWriter(locker.GetWriteStream());
 
 				csWriter.Write(Serialize());
 				csWriter.Close();
 			}
 			else
 			{
-				CryptoStream cs = new CryptoStream(locker.GetFileStream(), locker.GetEncryptor(), CryptoStreamMode.Write);
+				CryptoStream cs = new CryptoStream(locker.GetWriteStream(), locker.GetEncryptor(), CryptoStreamMode.Write);
 
 				StreamWriter csWriter = new StreamWriter(cs);
 				csWriter.Write(Serialize());
@@ -622,7 +621,7 @@ public class Manifest : IEnumerable<ManifestItem>
 				cs.Close();
 			}
 			
-			locker.CloseFileStream();
+			locker.CloseWriteStream();
 		}
 		catch (Exception e)
 		{
@@ -693,8 +692,12 @@ public class Manifest : IEnumerable<ManifestItem>
 		}
 		
 	}
-
-
+/*
+	/// <summary>
+	/// Shifts bytes
+	/// </summary>
+	/// <param name="input">Byte array to shift</param>
+	/// <returns>Shifted array</returns>
 	private static byte[] ShiftLeft(byte[] input)
 	{
 		byte[] shifted = new byte[input.Length];
@@ -703,8 +706,13 @@ public class Manifest : IEnumerable<ManifestItem>
 			shifted[i] = input[(i + 1) % input.Length];
 		}
 		return shifted;
-	}
+	}*/
 
+	/// <summary>
+	/// Shifts bytes
+	/// </summary>
+	/// <param name="input">Byte array to shift</param>
+	/// <returns>Shifted array</returns>
 	private static byte[] ShiftRight(byte[] input)
 	{
 		byte[] shifted = new byte[input.Length];
@@ -715,16 +723,24 @@ public class Manifest : IEnumerable<ManifestItem>
 		return shifted;
 	}
 
+	/// <summary>
+	/// Adds a manifest item (file) to the manifest
+	/// </summary>
+	/// <param name="item">file</param>
 	public void Add(ManifestItem item)
 	{
 		Items.Add(item);
 	}
 
+	/// <summary>
+	/// Removes a manifest file from the manifest
+	/// </summary>
+	/// <param name="item"></param>
 	public void Remove(ManifestItem item)
 	{
 		Items.Remove(item);
 	}
-
+/*
 	/// <summary>
 	/// Verifies a file exists in the manifest and is located in the same path.
 	/// </summary>
@@ -749,7 +765,7 @@ public class Manifest : IEnumerable<ManifestItem>
 				return true;
 		}
 		return false;
-	}
+	}*/
 
 	public string Serialize()
 	{
@@ -776,21 +792,39 @@ public class Manifest : IEnumerable<ManifestItem>
 
 public class ManifestItem : IComparable
 {   
+	/// <summary>
+	/// Local path of the file, used to reconstruct the folder structure when decrypting.
+	/// </summary>
 	public string Path { get; set; }
-	public string Name { get; set; }
-	public long StartingByte { get; set; }
-	public long ByteLength { get; set; }
-	/*public int FileIndex { get; set; }*/
 
-	public ManifestItem(/*string uuid,*/ string path, /*string hash,*/ string name, long startingByte, long byteLength/*, int fileIndex*/)
+	/// <summary>
+	/// Name of the file
+	/// </summary>
+	public string Name { get; set; }
+
+	/// <summary>
+	/// Starting Byte of the file data located in the archive
+	/// </summary>
+	public long StartingByte { get; set; }
+
+	/// <summary>
+	/// The total amount of bytes to be read from the starting byte
+	/// </summary>
+	public long ByteLength { get; set; }
+
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="path">Local path of the file from the RootDir</param>
+	/// <param name="name">Name of the file</param>
+	/// <param name="startingByte">The first bytes index within the archive</param>
+	/// <param name="byteLength">how many bytes are stored in the archive</param>
+	public ManifestItem(string path, string name, long startingByte, long byteLength)
 	{
-		//UUID = uuid;
 		Path = path;
-		//Hash = hash;
 		Name = name;
 		StartingByte = startingByte;
 		ByteLength = byteLength;
-		/*FileIndex = fileIndex;*/
 	}
 
 	public int CompareTo(object? obj)
@@ -800,42 +834,73 @@ public class ManifestItem : IComparable
 	}
 }
 
-
+/// <summary>
+/// Contains information critical to the locker (archive), like encryption key, path, name, configuration, manifest, ect.
+/// </summary>
 public class Locker
 {
-	private static FileStream? lockerStream;
-	private static BufferedStream? lockerBuffer;
+	#region Members
+	/// <summary>
+	/// the fileStream for writing to the locker
+	/// </summary>
+	private static FileStream? LockerStream;
+
+	/// <summary>
+	/// The BufferedSteam for lockerStream.
+	/// </summary>
+	private static BufferedStream? LockerBuffer;
+
+	/// <summary>
+	/// The locker file reference on the filesystem
+	/// </summary>
 	private FileInfo? LockerFile;
+
+	/// <summary>
+	/// The locker configuration, contains things like if the locker is an archive or a single file.
+	/// </summary>
 	private LockerConfig? LockerConfig;
+
+	/// <summary>
+	/// The locker file manifest
+	/// </summary>
 	private Manifest? LockerManifest;
+
+	/// <summary>
+	/// The AES256 symetric key
+	/// </summary>
 	private Aes? Key;
+	#endregion
 
 	public Locker(FileInfo? lockerFile = null)
 	{
 		LockerFile = lockerFile;
 	}
 
-	public ref BufferedStream GetFileStream()
+	public ref BufferedStream GetWriteStream()
 	{
-		if(lockerStream == null || (!lockerStream.CanWrite && !lockerStream.CanRead && !lockerStream.CanSeek))
+		if(LockerStream == null || (!LockerStream.CanWrite && !LockerStream.CanRead && !LockerStream.CanSeek))
 		{
-			lockerStream = File.OpenWrite(GetPath());
-			lockerBuffer = new BufferedStream(lockerStream);
+			LockerStream = File.OpenWrite(GetPath());
+			LockerBuffer = new BufferedStream(LockerStream);
 		}
-		lockerBuffer.Seek(0, SeekOrigin.End);
-		return ref lockerBuffer;
+		LockerBuffer.Seek(0, SeekOrigin.End);
+		return ref LockerBuffer;
 	}
 
-	public void CloseFileStream()
+	public void CloseWriteStream()
 	{
-		if ((lockerStream != null && lockerBuffer != null) && (lockerStream.CanWrite || lockerStream.CanSeek || lockerStream.CanRead))
+		if ((LockerStream != null && LockerBuffer != null) && (LockerStream.CanWrite || LockerStream.CanSeek || LockerStream.CanRead))
 		{
-			lockerBuffer.Flush();
-			lockerStream.Flush();
-			lockerBuffer.Close();
+			LockerBuffer.Flush();
+			LockerStream.Flush();
+			LockerBuffer.Close();
 		}
 	}
 
+	/// <summary>
+	/// Gets the lockers configuration
+	/// </summary>
+	/// <returns>Locker Configuration</returns>
 	public LockerConfig GetConfig()
 	{
 		if (LockerConfig == null)
@@ -886,6 +951,10 @@ public class Locker
 		return temp_name;
 	}
 
+	/// <summary>
+	/// Indicates wether the locker is an archive (dir encryption) or a single file
+	/// </summary>
+	/// <returns>true/false</returns>
 	public bool IsArchive()
 	{
 		return GetConfig().IsArchive;
@@ -917,27 +986,36 @@ public class Locker
 		}
 	}
 
+	/// <summary>
+	/// Generates an AES256 symetric key from a password.
+	/// Uses Argon2 to crate the key and iv.
+	/// </summary>
+	/// <param name="password">string to derive key from</param>
 	public void GenerateKey(string password)
 	{
+		//Get argon2 params from config
 		var tempConf = GetConfig();
+
+		//Convert password string to byte array
 		byte[]? pBytes = Encoding.ASCII.GetBytes(password);
 		Argon2id? argon = new(pBytes);
+
 		argon.DegreeOfParallelism = tempConf.DegreeOfParallelism;
 		argon.MemorySize = tempConf.MemorySize;
 		argon.Iterations = tempConf.Iterations;
 		argon.Salt = tempConf.Salt;
 
-		var key = argon.GetBytes(32);
-		var iv = argon.GetBytes(16);
+		var key = argon.GetBytes(32); //256 bit key
+		var iv = argon.GetBytes(16); //128 bit IV
 
-		//Empty ram after hash is generated
+		//Empty ram after hashes are generated
 		argon = null;
 		pBytes = null;
+		password = null;
 		GC.Collect();
 
 		//Generate key
 		var AES = Aes.Create();
-
 		AES.Key = key;
 		AES.IV = iv;
 		AES.Mode = CipherMode.CBC;
@@ -1013,6 +1091,12 @@ public class Locker
 		GetManifest().WriteToLocker(this, debug);
 	}
 
+	/// <summary>
+	/// Loads manifest from locker
+	/// </summary>
+	/// <param name="debug"></param>
+	/// <returns></returns>
+	/// <exception cref="Exception"></exception>
 	public Manifest? LoadManifest(bool debug = false)
 	{
 		if (!IsArchive())
@@ -1021,7 +1105,13 @@ public class Locker
 		return LockerManifest;
 	}
 
-	public LockerConfig LoadConfig()
+	/// <summary>
+	/// Loads config from locker
+	/// </summary>
+	/// <returns></returns>
+	/// <exception cref="NullReferenceException">LockerFile != null</exception>
+	/// <exception cref="Exception">Config header couldn't be found or the end token is missing</exception>
+	private LockerConfig LoadConfig()
 	{
 		if (LockerFile == null)
 		{
@@ -1046,7 +1136,7 @@ public class Locker
 				{
 					//Compile results until ending token (]) is found
 					string result = "";
-					for (int i = pattern.Length; i < fs.Length; i++)
+					for (int i = pattern.Length; i < /*fs.Length*/2048; i++) //2048 is hard coded because the config length doesn't scale with the encrypted files. This should prevent scanning for a missing end token to go through possibly petabytes of data.
 					{
 						fs.Seek(i, SeekOrigin.Begin);
 						char b = br.ReadChar();
@@ -1055,7 +1145,7 @@ public class Locker
 							LockerConfig = LockerConfig.Deserialize(result);
 							return LockerConfig;
 						}
-						else result += b;
+						else result += b; //Add to results and continue scanning (this prevents end token being mixed into the config data)
 					}
 				}
 			}
@@ -1073,22 +1163,35 @@ public class Locker
 /// </summary>
 public class LockerConfig
 {
+	#region Members
+	/// <summary>
+	/// Indicates wether the locker is an archive (directory encryption) or a single file (without a manifest)
+	/// </summary>
 	public bool IsArchive { get; private set; }
+
+	/// <summary>
+	/// The Argon2 hash salt
+	/// </summary>
 	public byte[] Salt { get; private set; }
+
+	/// <summary>
+	/// The Original file name (single file encryption only)
+	/// </summary>
 	public string? FileName { get; private set; }
 
+	/// <summary>
+	/// 
+	/// </summary>
 	public int DegreeOfParallelism { get; private set; }
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
+	#endregion
 
-	//Changing these default values will break backwards compadibility!
-	//Default dop:16, ms:8192, its:40, salt:Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk")
 	public LockerConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
 		IsArchive = isArchive;
 		FileName = fileName;
-		//Lockers without config headers are assumed to be legacy and will use the hard coded legay salt.
-		Salt = (salt == null) ? Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk") : salt;
+		Salt = salt;
 		DegreeOfParallelism = degreeOfParallelism;
 		MemorySize = memorySize;
 		Iterations = iterations;
@@ -1096,6 +1199,7 @@ public class LockerConfig
 
 	public string Serialize()
 	{
+		//TODO encrypt filename
 		string js = JsonSerializer.Serialize(this);
 		byte[] bytes = Encoding.Default.GetBytes(js);
 		string hex = Convert.ToHexString(bytes).ToLower();
@@ -1104,6 +1208,7 @@ public class LockerConfig
 
 	public static LockerConfig Deserialize(string input)
 	{
+		//TODO decrypt filename
 		var decoded = Convert.FromHexString(input);
 		var newItems = JsonSerializer.Deserialize<LockerConfig>(decoded);
 		if(newItems == null)
