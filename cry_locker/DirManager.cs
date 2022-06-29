@@ -6,92 +6,138 @@ using System.Text.Json;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using cry_locker;
+using Konscious.Security.Cryptography;
 
+/// <summary>
+/// Represents and manages a directory structure including sub dirs.
+/// Handles their encryption/decryption.
+/// </summary>
 public class DirManager
 {
-	public Dir? _root { get; private set; }
-	public FileInfo? _target { get; private set; }
-	private bool _isEncrypted;
+	#region Members
+	/// <summary>
+	/// The root directory (folder encryption)
+	/// </summary>
+	public Dir? RootDir { get; private set; }
 
-	public DirManager(DirectoryInfo dir)
+	/// <summary>
+	/// The "Target" file to be encrypted (single file encryption)
+	/// </summary>
+	public FileInfo? TargetFile { get; private set; }
+
+	/// <summary>
+	/// Used to flag if the encryption is complete or not.
+	/// </summary>
+	public bool IsEncrypted { get; private set; }
+
+	/// <summary>
+	/// The total number of bytes to be encrypted. Defaults to 1000 for display reasons.
+	/// </summary>
+	public long TotalBytes = 1000;
+
+	/// <summary>
+	/// The total number of milliseconds that elapsed during encryption.
+	/// </summary>
+	public double EncryptionTime { get; private set; }
+
+	/// <summary>
+	/// A list of files that failed to encrypt.
+	/// </summary>
+	public List<FailedItem> Failed = new List<FailedItem>();
+	#endregion
+
+	#region Boring methods
+	/// <summary>
+	/// Constructor for DirManager
+	/// </summary>
+	/// <param name="rootDir">The root directory to be encrypted (folder encryption)</param>
+	public DirManager(DirectoryInfo rootDir)
 	{
-		_root = new Dir(this, dir);
+		RootDir = new Dir(this, rootDir);
 	}
-	public DirManager(FileInfo file)
+	/// <summary>
+	/// Constructor for DirManager
+	/// </summary>
+	/// <param name="targetFile">The file to be encrypted (single file encryption)</param>
+	public DirManager(FileInfo targetFile)
 	{
-		_target = file;
+		TargetFile = targetFile;
 	}
 
+	/// <summary>
+	/// Probes all files and subfolders of the _rootDir to see if everything is ready.
+	/// Returns true if _rootDir is null (single file encryption)
+	/// </summary>
+	/// <returns>true/false</returns>
 	public bool IsLoaded()
 	{
-		return (_root == null) ? true:_root.IsLoaded();
+		return (RootDir == null) ? true: RootDir.IsLoaded();
 	}
 
-	public bool IsEncrypted()
-	{
-		return _isEncrypted;
-	}
-
+	/// <summary>
+	/// Returns all files in the DirManager (even if single file encryption is being performed)
+	/// </summary>
+	/// <returns>List of files (represented in ourfile entities)</returns>
 	private List<OurFile> GetFiles()
 	{
-		if(_target != null)
+		if(TargetFile != null)
 		{
 			var temp = new List<OurFile>();
-			temp.Add(new OurFile(_target, this));
+			temp.Add(new OurFile(TargetFile, this));
 			return temp;
+		}else if(RootDir != null)
+		{
+			return RootDir.GetFiles();
 		}
-		return _root.GetFiles();
+		else
+		{
+			throw new Exception("Both TargetFile and RootDir are null");
+		}
 	}
 
+	/// <summary>
+	/// Returns the number of files stored in DirManager
+	/// </summary>
+	/// <returns>a number</returns>
 	public int GetFileCount()
 	{
 		return GetFiles().Count;
 	}
+	#endregion
 
-/*	public static DirectoryInfo GetDecryptFolder()
-	{
-		if (DecryptFolder == null)
-			throw new NullReferenceException("_decryptFolder was never set!");
-		return DecryptFolder;
-	}
-	public static void SetDecryptFolder(DirectoryInfo folder)
-	{
-		if (!folder.Exists)
-			throw new Exception($"{folder.FullName} does not exist!");
-		DecryptFolder = folder;
-	}*/
-
-	//public int _encryptCount = 0;
-	public long _totalBytes = 1000;
-	public double _encryptionTime { get; private set; }
-	public List<FailedItem> _failed = new List<FailedItem>();
+	/// <summary>
+	/// Encrypts all file(s) stored in DirManager.
+	/// Also triggers the manifest to be written (or not to be).
+	/// </summary>
+	/// <param name="locker">stored information about the locker (output archive) and key </param>
+	/// <param name="debug">Debug flag that disables encryption</param>
 	public void Encrypt(Locker locker, bool debug = false)
 	{
 		List<OurFile> files = GetFiles();
 
-		//Reset vars
-		if (!locker.LockerConfig.IsArchive)
+		//Setup vars used to indicate progress to the user.
+		if (!locker.IsArchive() && TargetFile != null)
 		{
-			_totalBytes = _target.Length;
+			TotalBytes = TargetFile.Length; //Get total bytes for single file encryption
 		}
 		else
 		{
-			_totalBytes = files[0]._info.Length;
-			for (int fi = 1; fi < files.Count; fi++)
+			//Calculate total bytes in all files in dirManager
+			TotalBytes = 0;
+			foreach (var file in files)
 			{
-				_totalBytes += files[fi]._info.Length;
+				TotalBytes += file.Info.Length;
 			}
 		}
 
-		//_encryptCount = 0;
-		_failed = new List<FailedItem>();
+		//Clear and reinitualize Failed item list.
+		Failed = new List<FailedItem>();
 
-		
-
+		//Overflow check
 		if (files.Count > int.MaxValue)
 		{
 			var e = new Exception($"Maximum number of files exceeded! Max files {int.MaxValue}");
-			_failed.Add(new FailedItem(files[0],e));
+			Failed.Add(new FailedItem(files[0],e));
 			throw e;
 		}
 
@@ -99,64 +145,23 @@ public class DirManager
 		Stopwatch sw = new();
 		sw.Start();
 
-		int i = 0;
+		//Encrypt each file in DirManager
 		foreach (OurFile f in files)
 		{
-			if (f._info.Length <= long.MaxValue)
-			{
-				f._fileIndex = i;
-				if(f.Encrypt(locker, debug))
-					i++;
-
-					
-				/*int fi = 0;
-				while (!f.Encrypt(locker))
-				{
-					if(fi > 5)
-					{
-						break;
-					}
-					else
-					{
-						Thread.Sleep(50);
-					}
-					fi++;
-				}*/
-			}
-			else
-			{
-				_failed.Add(new FailedItem(f, new Exception($"Maximum file size exceed, 8EB (Exabytes) max!")));
-			}
+			f.Encrypt(locker, this, debug);
 		}
 
+		//Stop timer and post results
 		sw.Stop();
-		_encryptionTime = sw.Elapsed.TotalMilliseconds;
+		EncryptionTime = sw.Elapsed.TotalMilliseconds;
 
-		_isEncrypted = true;
-		/*
-				while (!IsHashed())
-				{
-					//Hashing isn't complete
-					Thread.Sleep(1);
-				}*/
+		IsEncrypted = true; //Flag the UI that encryption is done
 
-		if (locker.LockerConfig.IsArchive)
+		if (locker.IsArchive())
 		{
-			locker.LockerManifest = GenerateManifest();
+			//If archive (folder encryption) save manifest
+			locker.SetManifest(GenerateManifest());
 			locker.WriteManifest(debug);
-
-			//Debuging test
-			/*foreach (var item in locker.LockerManifest)
-			{
-				if(item.FileIndex > 0)
-				{
-					var mani = locker.LockerManifest.GetItemByIndex(item.FileIndex);
-					if(mani.StartingByte + mani.ByteLength != item.StartingByte - 1)
-					{
-						throw new Exception("Test failed!");
-					}
-				}
-			}*/
 		}
 	}
 
@@ -176,9 +181,9 @@ public class DirManager
 		TotalSize = 1000;
 		DecryptingPath = "";
 
-		if (locker.LockerConfig.IsArchive)
+		if (locker.IsArchive())
 		{
-			Manifest man = locker.LockerManifest;
+			Manifest man = locker.GetManifest();
 			ToDecrypt = man.GetItems().Count;
 
 
@@ -219,7 +224,7 @@ public class DirManager
 					}
 					else
 					{
-						cs = new(bWrite, locker.Key.CreateDecryptor(), CryptoStreamMode.Write); //Padding is invalid and cannot be removed...
+						cs = new(bWrite, locker.GetDecryptor(), CryptoStreamMode.Write); //Padding is invalid and cannot be removed...
 					}
 
 					
@@ -234,9 +239,13 @@ public class DirManager
 						bRead.Read(buffer, 0, buffer.Length);
 						if (cs != null)
 							cs.Write(buffer, 0, buffer.Length);
-						else
+						else if(sw != null)
 						{
 							sw.Write(Encoding.Default.GetString(buffer));
+						}
+						else
+						{
+							throw new Exception("Both CS and SW are null");
 						}
 					}
 					if (sw != null)
@@ -281,9 +290,9 @@ public class DirManager
 					{
 						bRead.Seek(i + pattern.Length, SeekOrigin.Begin);
 
-						using var cs = new CryptoStream(bRead, locker.Key.CreateDecryptor(), CryptoStreamMode.Read);
+						using var cs = new CryptoStream(bRead, locker.GetDecryptor(), CryptoStreamMode.Read);
 
-						string fname = locker.LockerConfig.FileName;
+						string fname = locker.GetFileName();
 						var sname = fname.Split(".");
 						int index = 0;
 						while (File.Exists($"{locker.GetDirectoryPath()}/{fname}") || Directory.Exists($"{locker.GetDirectoryPath()}/{fname}"))
@@ -314,91 +323,90 @@ public class DirManager
 	}
 
 	/// <summary>
-	/// Generates a Manfest file and if saveLocation is set, saves to file inside of locker
+	/// Generates a Manfest file.
 	/// </summary>
 	/// <returns>Manifest</returns>
 	private Manifest GenerateManifest()
 	{
 		List<OurFile> files = GetFiles();
 
-		foreach (var item in _failed)
+		//Remove files that failed to encrypt
+		foreach (var item in Failed)
 		{
-			files.Remove(item._file);
+			files.Remove(item.File);
 		}
 
-		Manifest m = new(this);
+		//Add all encrypted files to the manifest
+		Manifest m = new();
 		foreach (OurFile f in files)
 		{
-			/*if (!f._isComputed)
-			{
-				throw new Exception("All file hashes must be computed before generating manifest!");
-			}*/
-			m.Add(new ManifestItem(/*f._uuid,*/ f._path, /*f._hash,*/ f._name, f._startingByte, f._byteLength, f._fileIndex));
+			m.Add(new ManifestItem(f.Path, f.Name, f.StartingByte, f.Length));
 		}
 
 		return m;
 	}
 }
 
+/// <summary>
+/// Entity class representing a directory as a member of DirManager.
+/// </summary>
 public class Dir
 {
-	public DirManager _manager { get; private set; }
-	public DirectoryInfo _self { get; private set; }
-	public double _size { get; private set; }
+	/// <summary>
+	/// The DirManager responsible for the Directory.
+	/// </summary>
+	public DirManager Manager { get; private set; }
+	/// <summary>
+	/// The reference to it's own directory in the file system
+	/// </summary>
+	public DirectoryInfo Self { get; private set; }
+	/// <summary>
+	/// Size of all files and sub directories in bytes.
+	/// </summary>
+	public long Size { get; private set; }
 
-	private Dir? _parent; //If null, it signified it's the root
-	private List<Dir> _subDirs = new();
-	private List<OurFile> _files = new();
-	private bool _filesLoaded = false;
-	private bool _subDirsLoaded = false;
+	private Dir? Parent; //If null, it signified it's the root
+	private List<Dir> SubDirs = new();
+	private List<OurFile> Files = new();
+	private bool Loaded = false;
 
 	public Dir(DirManager manager, DirectoryInfo dir, Dir? parent = null)
 	{
-		_manager = manager;
-		_parent = parent;
-		_self = dir;
-		_size = 0;
-		_filesLoaded = true;
+		Manager = manager;
+		Parent = parent;
+		Self = dir;
+		Size = 0;
 
-		foreach (DirectoryInfo d in dir.GetDirectories())
+		//Foreach sub Directory found by file system, create a new Dir instance and save into SubDirs list
+		foreach (var d in Self.GetDirectories())
 		{
 			Dir subD = new(manager, d, this);
-			_subDirs.Add(subD);
-			_size += subD._size;
+			SubDirs.Add(subD);
+			Size += subD.Size; //Calculate dir byte size
 		}
-		_subDirsLoaded = true;
 
 		foreach (FileInfo f in dir.GetFiles())
 		{
-			_size += f.Length;
+			Size += f.Length;
 			OurFile nf = new(f, this);
-			_files.Add(nf);
+			Files.Add(nf);
 		}
-
-		
+		Loaded = true;
 	}
 
+	/// <summary>
+	/// Probes all files and subfolders of the dir to see if everything is ready
+	/// </summary>
+	/// <returns>true/false</returns>
 	public bool IsLoaded()
 	{
-		if (_filesLoaded && _subDirsLoaded)
-			return true;
-		return false;
-	}
-
-	public bool IsHashed()
-	{
-		/*foreach (OurFile f in GetFiles())
-		{
-			if (!f._isComputed)
-				return false;
-		}*/
-		return true;
+		return Loaded;
 	}
 
 	public List<OurFile> GetFiles()
 	{
 		List<OurFile> temp = new();
-		foreach (Dir d in _subDirs)
+		foreach (Dir d in SubDirs)
 		{
 			foreach (OurFile f in d.GetFiles())
 			{
@@ -406,7 +414,7 @@ public class Dir
 			}
 		}
 
-		foreach (OurFile f in _files)
+		foreach (OurFile f in Files)
 		{
 			temp.Add(f);
 		}
@@ -416,9 +424,9 @@ public class Dir
 
 	public string GetLocalPath()
 	{
-		if (_parent != null)
+		if (Parent != null)
 		{
-			return $"{_parent.GetLocalPath()}{_self.Name}/";
+			return $"{Parent.GetLocalPath()}{Self.Name}/";
 		}
 		else
 		{
@@ -430,148 +438,130 @@ public class Dir
 
 public class OurFile
 {
-	public FileInfo _info { get; private set; }
-	private Dir? _parent;
-	//public string? _hash { get; private set; }
-	public long _byteLength { get; private set; }
-	public long _startingByte { get; private set; }
+	#region Members
 	/// <summary>
-	/// fileIndex is the index or order that the file was written into the locker (for example, the second file will be index 1).
-	/// This information is vital for calculating where the starting byte is for a particular file
+	/// Reference to the file in the filesystem
 	/// </summary>
-	public int _fileIndex { get; set; }
-	public string _path { get; private set; }
-	public string _name { get; private set; }
-	private DirManager _manager;
-	/*public string? _uuid { get; private set; }*/
-	//public bool _isComputed { get; private set; }
+	public FileInfo Info { get; private set; }
 
-	public OurFile(FileInfo file, Dir parent/*, string? uuid = null*/)
+	/// <summary>
+	/// The parent Directory (Dir)
+	/// </summary>
+	public Dir? Parent { get; private set; }
+
+	/// <summary>
+	/// Length of the file in bytes
+	/// </summary>
+	public long Length { get; private set; }
+
+	/// <summary>
+	/// The starting bytes index in the locker (archive file)
+	/// </summary>
+	public long StartingByte { get; private set; }
+
+	/// <summary>
+	/// The local path from the RootDir to the file. Used to recreate the folder structure when decrypting.
+	/// </summary>
+	public string Path { get; private set; }
+
+	/// <summary>
+	/// The name and extension of the file used when decrypting.
+	/// </summary>
+	public string Name { get; private set; }
+	#endregion
+
+	public OurFile(FileInfo file, Dir parent)
 	{
-		_info = file;
-		_name = file.Name;
-		_parent = parent;
-		_path = parent.GetLocalPath();
-		_manager = parent._manager;
-		/*if (uuid == null)
-			uuid = Guid.NewGuid().ToString();
-		_uuid = uuid;*/
-		//ThreadPool.QueueUserWorkItem(Hash);
-		//Hash(null);
+		Info = file;
+		Name = file.Name;
+		Parent = parent;
+		Path = parent.GetLocalPath();
 	}
+
 	public OurFile(FileInfo file, DirManager manager)
 	{
-		_info = file;
-		_name = file.Name;
-		_path = "";
-		_manager = manager;
+		Info = file;
+		Name = file.Name;
+		Path = "";
 	}
 
 	public string GetRelativePath()
 	{
-		if(_parent == null)
+		if(Parent == null)
 		{
-			return $"{_info.Name}";
+			return $"{Info.Name}";
 		}
-		return $"{_parent.GetLocalPath()}\\{_info.Name}";
+		return $"{Parent.GetLocalPath()}\\{Info.Name}";
 	}
 
-	/*private void Hash(Object stateInfo)
+	/// <summary>
+	/// Encrypts the files content and writes to end of locker.
+	/// </summary>
+	/// <param name="locker">locker (file) to write to</param>
+	/// <param name="manager">used as a callback if encryption fails</param>
+	/// <param name="debug">disables encryption and adds file headers</param>
+	/// <returns></returns>
+	public bool Encrypt(Locker locker, DirManager manager, bool debug = false)
 	{
 		try
 		{
-			using (FileStream fs = _info.OpenRead())
+			StartingByte = new FileInfo(locker.GetLockerFile().FullName).Length;
+
+			using (FileStream fileRead = Info.OpenRead())
 			{
-				using BufferedStream b = new(fs);
-
-				var hash_algo = MD5.Create();
-				_hash = BitConverter.ToString(hash_algo.ComputeHash(b)).Replace("-", "").ToLower();
-			}
-
-
-		}
-		catch (Exception e)
-		{
-			_hash = null;
-		}
-		_isComputed = true;
-	}*/
-	//private static long debug_startingLength = 0;
-	public bool Encrypt(Locker locker, bool debug = false)
-	{
-		try
-		{
-			//if(_fileIndex > 0)
-			_startingByte = new FileInfo(locker.LockerFile.FullName).Length;
-
-			//_startingByte = locker.LockerManifest
-			using (FileStream fileRead = _info.OpenRead())
-			{
-				//long startingLength;
-				//TODO instead of opening and closing the lockerFile for ever file being encrypted, just access a always open filestream and write to it
-				long startingLength = locker.getFileStream().Length;
-				//debug_startingLength = startingLength;
+				long startingLength = locker.GetFileStream().Length;
 					
 				using BufferedStream bRead = new(fileRead);
-				//using BufferedStream bWrite = new(fileWrite);
-				locker.getFileStream().Seek(0, SeekOrigin.End);
+				locker.GetFileStream().Seek(0, SeekOrigin.End);
+
 				if (debug)
 				{
-					StreamWriter sw = new StreamWriter(locker.getFileStream());
-					sw.Write($"[file_start_{_fileIndex}]");
-					sw.Flush();
-					locker.getFileStream().Seek(0, SeekOrigin.End);
-					CryptoStream cs = new(bRead, locker.Key.CreateEncryptor(), CryptoStreamMode.Read);
-					cs.CopyTo(locker.getFileStream());
-					cs.Close();
-					locker.getFileStream().Seek(0, SeekOrigin.End);
-					sw.Write($"[file_end_{_fileIndex}]");
+					//Write debug file header
+					StreamWriter sw = new StreamWriter(locker.GetFileStream());
+					sw.Write($"[file_start]");
+					sw.Flush(); //Flush to ensure the data is writen before moving on.
+
+					locker.GetFileStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
+					bRead.CopyTo(locker.GetFileStream());
+					bRead.Flush();
+
+					locker.GetFileStream().Seek(0, SeekOrigin.End); //Pretty sure this does shit all
+					sw.Write($"[file_end]");
 					sw.Close();
 				}
 				else
 				{
-					using CryptoStream cs = new(bRead, locker.Key.CreateEncryptor(), CryptoStreamMode.Read);
-					cs.CopyTo(locker.getFileStream());
+					using CryptoStream cs = new(bRead, locker.GetEncryptor(), CryptoStreamMode.Read);
+					cs.CopyTo(locker.GetFileStream());
 				}
 
-				//bRead.CopyTo(cs);
-				//_byteLength = bRead.Length;
-				//bRead.Flush();
-				//cs.Flush();
-				//bRead.Close();
-				//cs.Close();
-				//Get a new fileinfo and check the length
-				_byteLength = (long)(locker.getFileStream().Length - startingLength);
+				Length = (long)(locker.GetFileStream().Length - startingLength);
 			}
 			
 			
 		}
 		catch (Exception e)
 		{
-			//var endLength = locker.getFileStream().Length;
-			var item = new FailedItem(this, e);
-			
-			//if (!manager._failed.Contains(item))
-			_manager._failed.Add(item);
+			manager.Failed.Add(new FailedItem(this, e));
 			GC.Collect();
 			return false;
 		}
 		GC.Collect();
-		//_manager._encryptCount++;
 		return true;
 	}
 
 }
 
 
-
+/// <summary>
+/// The file manifest used to keep track of information related to files inside the archive and where their starting and ending bytes are located within.
+/// </summary>
 public class Manifest : IEnumerable<ManifestItem>
 {
-	private List<ManifestItem> _items = new();
 	#region Implmentation of ienumerable
 	public IEnumerator<ManifestItem> GetEnumerator()
 	{
-		return _items.GetEnumerator();
+		return Items.GetEnumerator();
 	}
 
 	IEnumerator IEnumerable.GetEnumerator()
@@ -579,75 +569,51 @@ public class Manifest : IEnumerable<ManifestItem>
 		return GetEnumerator();
 	}
 	#endregion
-	private readonly DirManager? _manager;
-	public Manifest(DirManager manager)
-	{
-		_manager = manager;
-	}
+
+	private List<ManifestItem> Items = new();
+
+	public Manifest() { /*Thought there was a better way of writing an empty Constructor...*/ }
 	public Manifest(List<ManifestItem> list)
 	{
-		list.Sort(); //Sorts ManifestItems by fileIndex
-		_items = list;
+		list.Sort(); //Sorts ManifestItems by startingbyte
+		Items = list;
 	}
 
 	public ManifestItem GetItemByIndex(int index)
 	{
-		return _items[index];
-	}
-
-	/*public ManifestItem? GetItemByUUID(string uuid)
-	{
-		foreach (var item in _items)
-		{
-			if (item.UUID == uuid)
-			{
-				return item;
-			}
-		}
-		return null;
-	}*/
-
-	public ManifestItem GetItemByName(string name)
-	{
-		foreach (var item in _items)
-		{
-			if (item.Name == name)
-			{
-				return item;
-			}
-		}
-		return null;
+		return Items[index];
 	}
 
 	public List<ManifestItem> GetItems()
 	{
-		return _items;
+		return Items;
 	}
 
-	public void WriteToDisk(Locker locker, Aes key, bool debug = false)
+	/// <summary>
+	/// Writes the manifest to the locker (archive)
+	/// </summary>
+	/// <param name="locker">the archive to write to</param>
+	/// <param name="debug">Disables encryption</param>
+	public void WriteToLocker(Locker locker, bool debug = false)
 	{
 		try
 		{
-			locker.getFileStream().Seek(0, SeekOrigin.End);
-			StreamWriter sw = new StreamWriter(locker.getFileStream());
+			locker.GetFileStream().Seek(0, SeekOrigin.End);
+			StreamWriter sw = new StreamWriter(locker.GetFileStream());
 			sw.Write("[manifest]");
 			sw.Flush(); //Need to flush before seeking to make sure the header is writen
 
-			locker.getFileStream().Seek(0, SeekOrigin.End);
+			locker.GetFileStream().Seek(0, SeekOrigin.End);
 			if (debug)
 			{
-				StreamWriter csWriter = new StreamWriter(locker.getFileStream());
+				StreamWriter csWriter = new StreamWriter(locker.GetFileStream());
 
-				//Encode to avoid reading issues
-				//byte[] bytes = Encoding.Default.GetBytes(Serialize());
-				//string hex = Convert.ToHexString(bytes).ToLower();
 				csWriter.Write(Serialize());
-
 				csWriter.Close();
 			}
 			else
 			{
-				CryptoStream cs = new CryptoStream(locker.getFileStream(), key.CreateEncryptor(), CryptoStreamMode.Write);
+				CryptoStream cs = new CryptoStream(locker.GetFileStream(), locker.GetEncryptor(), CryptoStreamMode.Write);
 
 				StreamWriter csWriter = new StreamWriter(cs);
 				csWriter.Write(Serialize());
@@ -656,11 +622,11 @@ public class Manifest : IEnumerable<ManifestItem>
 				cs.Close();
 			}
 			
-			locker.closeFileStream();
+			locker.CloseFileStream();
 		}
 		catch (Exception e)
 		{
-			//locker.LockerFile.Delete();
+			locker.DeleteLocker();
 			Console.WriteLine("Failed to save locker, reason:");
 			Console.WriteLine(e.Message);
 			throw;
@@ -668,10 +634,11 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	}
 
-	public static Manifest? LoadFromDisk(FileInfo file, Aes key, bool debug = false)
+	public static Manifest LoadManifest(Locker locker, bool debug = false)
 	{
 		try
 		{
+			var file = locker.GetLockerFile();
 			if (!file.Exists)
 				throw new Exception($"\"{file.FullName}\" does not exist!");
 
@@ -706,7 +673,7 @@ public class Manifest : IEnumerable<ManifestItem>
 						}
 						else
 						{
-							var cs = new CryptoStream(buff, key.CreateDecryptor(), CryptoStreamMode.Read);
+							var cs = new CryptoStream(buff, locker.GetDecryptor(), CryptoStreamMode.Read);
 
 							sr = new(cs);
 							string json_string = sr.ReadToEnd();
@@ -718,12 +685,11 @@ public class Manifest : IEnumerable<ManifestItem>
 					}
 				}
 			}
-			return null;
+			throw new Exception("Failed to find manifest in archive");
 		}
 		catch (Exception e)
 		{
-			//throw e;
-			return null;
+			throw e;
 		}
 		
 	}
@@ -749,30 +715,14 @@ public class Manifest : IEnumerable<ManifestItem>
 		return shifted;
 	}
 
-	/// <summary>
-	/// Gets the starting byte for a given file
-	/// </summary>
-	/// <returns></returns>
-	private int offset = 0;
-	public long GetStartingByte(int index)
-	{
-		if (index == 0 && _items[0].StartingByte > 0)
-			offset = (int)_items[0].StartingByte;
-		long byteLocation = 0;
-		for (int i = 0; i < index; i++)
-		{
-			byteLocation += _items[i].ByteLength;
-		}
-		return byteLocation + offset;
-	}
-
 	public void Add(ManifestItem item)
 	{
-		_items.Add(item);
+		Items.Add(item);
 	}
+
 	public void Remove(ManifestItem item)
 	{
-		_items.Remove(item);
+		Items.Remove(item);
 	}
 
 	/// <summary>
@@ -782,7 +732,7 @@ public class Manifest : IEnumerable<ManifestItem>
 	/// <returns></returns>
 	private bool Exists(ManifestItem item)
 	{
-		foreach (ManifestItem i in _items)
+		foreach (ManifestItem i in Items)
 		{
 			if (i.Name == item.Name &&
 				i.Path == item.Path)
@@ -792,7 +742,7 @@ public class Manifest : IEnumerable<ManifestItem>
 	}
 	private bool Exists(string name, string localPath)
 	{
-		foreach (ManifestItem i in _items)
+		foreach (ManifestItem i in Items)
 		{
 			if (i.Name == name &&
 				i.Path == localPath)
@@ -803,7 +753,7 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	public string Serialize()
 	{
-		return JsonSerializer.Serialize(_items);
+		return JsonSerializer.Serialize(Items);
 	}
 
 	/// <summary>
@@ -826,16 +776,13 @@ public class Manifest : IEnumerable<ManifestItem>
 
 public class ManifestItem : IComparable
 {   
-	//Different case used for JSON formatting
-	/*public string UUID { get; set; }*/
 	public string Path { get; set; }
-/*	public string Hash { get; set; }*/
 	public string Name { get; set; }
 	public long StartingByte { get; set; }
 	public long ByteLength { get; set; }
-	public int FileIndex { get; set; }
+	/*public int FileIndex { get; set; }*/
 
-	public ManifestItem(/*string uuid,*/ string path, /*string hash,*/ string name, long startingByte, long byteLength, int fileIndex)
+	public ManifestItem(/*string uuid,*/ string path, /*string hash,*/ string name, long startingByte, long byteLength/*, int fileIndex*/)
 	{
 		//UUID = uuid;
 		Path = path;
@@ -843,50 +790,160 @@ public class ManifestItem : IComparable
 		Name = name;
 		StartingByte = startingByte;
 		ByteLength = byteLength;
-		FileIndex = fileIndex;
+		/*FileIndex = fileIndex;*/
 	}
 
 	public int CompareTo(object? obj)
 	{
 		var t = (ManifestItem?)obj;
-		return FileIndex.CompareTo(t?.FileIndex);
+		return StartingByte.CompareTo(t?.StartingByte);
 	}
 }
 
 
 public class Locker
 {
-	private static FileStream lockerStream;
-	private static BufferedStream lockerBuffer;
-
-	public FileInfo? LockerFile { get; set; }
-	public HashConfig? LockerConfig { get; set; }
-	public Manifest? LockerManifest { get; set; }
-	public Aes? Key { get; set; }
+	private static FileStream? lockerStream;
+	private static BufferedStream? lockerBuffer;
+	private FileInfo? LockerFile;
+	private LockerConfig? LockerConfig;
+	private Manifest? LockerManifest;
+	private Aes? Key;
 
 	public Locker(FileInfo? lockerFile = null)
 	{
 		LockerFile = lockerFile;
 	}
 
-	public ref BufferedStream getFileStream()
+	public ref BufferedStream GetFileStream()
 	{
 		if(lockerStream == null || (!lockerStream.CanWrite && !lockerStream.CanRead && !lockerStream.CanSeek))
 		{
 			lockerStream = File.OpenWrite(GetPath());
 			lockerBuffer = new BufferedStream(lockerStream);
 		}
+		lockerBuffer.Seek(0, SeekOrigin.End);
 		return ref lockerBuffer;
 	}
 
-	public void closeFileStream()
+	public void CloseFileStream()
 	{
-		if (lockerStream.CanWrite || lockerStream.CanSeek || lockerStream.CanRead)
+		if ((lockerStream != null && lockerBuffer != null) && (lockerStream.CanWrite || lockerStream.CanSeek || lockerStream.CanRead))
 		{
 			lockerBuffer.Flush();
 			lockerStream.Flush();
 			lockerBuffer.Close();
 		}
+	}
+
+	public LockerConfig GetConfig()
+	{
+		if (LockerConfig == null)
+			return LoadConfig();
+		else return LockerConfig;
+	}
+
+	public void SetConfig(LockerConfig config)
+	{
+		LockerConfig = config;
+	}
+
+	public Manifest GetManifest()
+	{
+		if (LockerManifest == null)
+			throw new Exception("LockerManifest is null");
+		return LockerManifest;
+	}
+
+	public void SetManifest(Manifest man)
+	{
+		LockerManifest = man;
+	}
+
+	public FileInfo GetLockerFile()
+	{
+		if (LockerFile == null)
+			throw new Exception("LockerFile is null");
+		return LockerFile;
+	}
+
+	/// <summary>
+	/// Deletes the locker file, should only be used on critical errors.
+	/// </summary>
+	public void DeleteLocker()
+	{
+		GetLockerFile().Delete();
+	}
+
+	public string GetFileName()
+	{
+		string? temp_name = null;
+		if (LockerConfig == null)
+			temp_name = GetConfig().FileName;
+
+		if (temp_name == null)
+			throw new Exception("OGFileName is null");
+		return temp_name;
+	}
+
+	public bool IsArchive()
+	{
+		return GetConfig().IsArchive;
+	}
+
+	public ICryptoTransform GetEncryptor()
+	{
+		if (Key == null)
+			throw new Exception("Key is null (GetEncryptor)");
+		return Key.CreateEncryptor();
+	}
+
+	public ICryptoTransform GetDecryptor()
+	{
+		if (Key == null)
+			throw new Exception("Key is null (getDecryptor)");
+		return Key.CreateDecryptor();
+	}
+
+	private Aes GetKey()
+	{
+		if(Key != null)
+		{
+			return Key;
+		}
+		else
+		{
+			throw new Exception("Key is null (GetKey)");
+		}
+	}
+
+	public void GenerateKey(string password)
+	{
+		var tempConf = GetConfig();
+		byte[]? pBytes = Encoding.ASCII.GetBytes(password);
+		Argon2id? argon = new(pBytes);
+		argon.DegreeOfParallelism = tempConf.DegreeOfParallelism;
+		argon.MemorySize = tempConf.MemorySize;
+		argon.Iterations = tempConf.Iterations;
+		argon.Salt = tempConf.Salt;
+
+		var key = argon.GetBytes(32);
+		var iv = argon.GetBytes(16);
+
+		//Empty ram after hash is generated
+		argon = null;
+		pBytes = null;
+		GC.Collect();
+
+		//Generate key
+		var AES = Aes.Create();
+
+		AES.Key = key;
+		AES.IV = iv;
+		AES.Mode = CipherMode.CBC;
+		AES.Padding = PaddingMode.PKCS7;
+
+		Key = AES;
 	}
 
 	public void GenerateLocker(string fileName)
@@ -896,7 +953,7 @@ public class Locker
 			throw new NullReferenceException("LockerConfig cannot be null when Generating a locker");
 		}
 
-		string name = $"{Regex.Replace(fileName, $"[.](.*)$", "", RegexOptions.IgnoreCase)}.{CryLocker.extention}";
+		string name = $"{Regex.Replace(fileName, @"\.(.[^.] +$)", "", RegexOptions.IgnoreCase)}.{CryLocker.extention}";
 		int index = 0;
 		while (File.Exists(name) || Directory.Exists(name))
 		{
@@ -929,16 +986,23 @@ public class Locker
 	/// <exception cref="NullReferenceException"></exception>
 	public string GetPath()
 	{
-		if (!LockerFile.Exists)
+		if (!GetLockerFile().Exists)
 		{
 			throw new NullReferenceException("LockerFile has not been generated!");
 		}
-		return LockerFile.FullName;
+		return GetLockerFile().FullName;
 	}
 
 	public string GetDirectoryPath()
 	{
-		return LockerFile.DirectoryName;
+		var temp_name = GetLockerFile().DirectoryName;
+		if (temp_name != null)
+		{
+			return temp_name;
+		}
+		else throw new NullReferenceException("Directory Name is null");
+
+		
 	}
 
 	/// <summary>
@@ -946,23 +1010,24 @@ public class Locker
 	/// </summary>
 	public void WriteManifest(bool debug = false)
 	{
-		LockerManifest.WriteToDisk(this, Key, debug);
+		GetManifest().WriteToLocker(this, debug);
 	}
 
 	public Manifest? LoadManifest(bool debug = false)
 	{
-		if (!LockerConfig.IsArchive)
+		if (!IsArchive())
 			throw new Exception("Manifest cannot be loaded on a non archive!");
-		LockerManifest = Manifest.LoadFromDisk(LockerFile, Key, debug);
+		LockerManifest = Manifest.LoadManifest(this, debug);
 		return LockerManifest;
 	}
 
-	public HashConfig LoadConfig()
+	public LockerConfig LoadConfig()
 	{
 		if (LockerFile == null)
 		{
 			throw new NullReferenceException("LockerFile cannot be null when loading config");
 		}
+
 		try
 		{
 			using (FileStream fs = File.OpenRead(LockerFile.FullName))
@@ -987,17 +1052,11 @@ public class Locker
 						char b = br.ReadChar();
 						if (b == 93) // 93 = 5d (] in hex)
 						{
-							LockerConfig = HashConfig.Deserialize(result);
+							LockerConfig = LockerConfig.Deserialize(result);
 							return LockerConfig;
 						}
 						else result += b;
 					}
-				}
-				else
-				{
-					//Legacy locker
-					LockerConfig = new HashConfig(false, null);
-					return LockerConfig;
 				}
 			}
 		}
@@ -1009,18 +1068,22 @@ public class Locker
 	}
 }
 
-public class HashConfig
+/// <summary>
+/// Stores information about the password hash, original file name (for single file encryption), 
+/// </summary>
+public class LockerConfig
 {
+	public bool IsArchive { get; private set; }
 	public byte[] Salt { get; private set; }
+	public string? FileName { get; private set; }
+
 	public int DegreeOfParallelism { get; private set; }
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
-	public bool IsArchive { get; private set; }
-	public string? FileName { get; private set; }
 
 	//Changing these default values will break backwards compadibility!
 	//Default dop:16, ms:8192, its:40, salt:Encoding.Default.GetBytes("jhkbdshkjGBkfgaqwkbjk")
-	public HashConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
+	public LockerConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
 	{
 		IsArchive = isArchive;
 		FileName = fileName;
@@ -1039,25 +1102,28 @@ public class HashConfig
 		return hex;
 	}
 
-	public static HashConfig Deserialize(string input)
+	public static LockerConfig Deserialize(string input)
 	{
 		var decoded = Convert.FromHexString(input);
-		var newItems = JsonSerializer.Deserialize<HashConfig>(decoded);
+		var newItems = JsonSerializer.Deserialize<LockerConfig>(decoded);
 		if(newItems == null)
 		{
-			throw new NullReferenceException("Failed to deserialize HashConfig");
+			throw new NullReferenceException("Failed to deserialize LockerConfig");
 		}
 		return newItems;
 	}
 }
 
+/// <summary>
+/// Entity class that stores information on files that failed to encrypt, and the exception that caused it.
+/// </summary>
 public class FailedItem
 {
-	public OurFile _file { get; private set; }
-	public Exception _exception { get; private set; }
+	public OurFile File { get; private set; }
+	public Exception Exception { get; private set; }
 	public FailedItem(OurFile file, Exception exception)
 	{
-		_file = file;
-		_exception = exception;
+		File = file;
+		Exception = exception;
 	}
 }
