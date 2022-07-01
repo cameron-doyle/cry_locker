@@ -2,26 +2,31 @@
 using System.Diagnostics.Contracts;
 using System.Runtime.InteropServices;
 
+RegistryKey? regmenu = null;
+RegistryKey? regcmd = null;
 
-RegistryKey regmenu = null;
-RegistryKey regcmd = null;
+string ext = "cry_locker";
+string exeName = "cry_locker.exe";
 
 string loc = AppContext.BaseDirectory;
 
-//Setup folder menu
+
+//Setup encrypt menu for folders (excludes recycle bin)
 try
 {
-    string MenuName = "Folder\\shell\\cry_locker";
-    string command = "Folder\\shell\\cry_locker\\command";
+    string MenuName = $"Folder\\shell\\{exeName}";
+    string command = $"Folder\\shell\\{exeName}\\command";
     regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
     if (regmenu != null)
     {
-        regmenu.SetValue("", "Encrypt");
+        regmenu.SetValue("", "Encrypt"); //Context menu entry
+        regmenu.SetValue("Icon", $"{loc}{exeName}"); //Icon for the context menu
+        regmenu.SetValue("AppliesTo", "System.FileName:?*"); //Prevents special folders like recycle bin from showing up
     }
     regcmd = Registry.ClassesRoot.CreateSubKey(command);
     if (regcmd != null)
     {
-        regcmd.SetValue("", "cmd /c cry_locker -e \"%1\"");
+        regcmd.SetValue("", $"cmd /c {exeName} -e \"%1\""); //CMD that is run when the context menu item is selected
     }
 }
 catch (Exception e)
@@ -36,20 +41,26 @@ finally
     if (regcmd != null) regcmd.Close();
 }
 
-//Setup the file menu
-/*try
+
+regmenu = null;
+regcmd = null;
+
+//Setup encrypt menu for files
+try
 {
-    string MenuName = "*\\shell\\cry_locker";
-    string command = "*\\shell\\cry_locker\\command";
+    string MenuName = $"*\\shell\\{exeName}";
+    string command = $"*\\shell\\{exeName}\\command";
     regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
     if (regmenu != null)
     {
-        regmenu.SetValue("", "Encrypt");
+        regmenu.SetValue("", "Encrypt"); //Context menu entry
+        regmenu.SetValue("Icon", $"{loc}{exeName}"); //Icon for the context menu
+        //regmenu.SetValue("Position", "Top"); This makes the encrypt option appear on top of .cry_locker files, which isn't ideal
     }
     regcmd = Registry.ClassesRoot.CreateSubKey(command);
     if (regcmd != null)
     {
-        regcmd.SetValue("", "cmd /k cry_locker -e \"%1\"");
+        regcmd.SetValue("", $"cmd /c {exeName} -e \"%1\""); //CMD that is run when the context menu item is selected
     }
 }
 catch (Exception e)
@@ -62,27 +73,71 @@ finally
 {
     if (regmenu != null) regmenu.Close();
     if (regcmd != null) regcmd.Close();
-}*/
+}
+
+
+//reset
+regmenu = null;
+regcmd = null;
+RegistryKey? ico = null;
+
+//Setup decrypt menu
+try
+{
+    string MenuName = $".{ext}\\shell\\{exeName}";
+    string command = $".{ext}\\shell\\{exeName}\\command";
+    string icon = $".{ext}\\DefaultIcon";
+    regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
+    if (regmenu != null)
+    {
+        regmenu.SetValue("", "Decrypt");
+        regmenu.SetValue("Icon", $"{loc}{exeName}");
+        regmenu.SetValue("Position", "Top");
+    }
+    ico = Registry.ClassesRoot.CreateSubKey(icon);
+    if(ico != null)
+	{
+        ico.SetValue("", $"{loc}{exeName}");
+    }
+    regcmd = Registry.ClassesRoot.CreateSubKey(command);
+    if (regcmd != null)
+    {
+        regcmd.SetValue("", $"cmd /c {exeName} -d \"%1\"");
+    }
+
+/*    var ins = Registry.ClassesRoot.CreateSubKey($".{exeName}\\DefaultIcon");
+    if(ins != null)
+	{
+        string p = $"{loc}{exeName}";
+        ins.SetValue("", p);
+    }*/
+}
+catch (Exception e)
+{
+    Console.WriteLine(e.Message);
+    Console.ReadLine();
+    throw;
+}
+finally
+{
+    if (regmenu != null) regmenu.Close();
+    if (regcmd != null) regcmd.Close();
+    if (ico != null) ico.Close();
+
+}
 
 //reset
 regmenu = null;
 regcmd = null;
 
-//Setup .cry_locker menu
-//Made obsolete by file association
+//Set icon for file
 /*try
 {
-    string MenuName = ".cry_locker\\shell\\cry_locker";
-    string command = ".cry_locker\\shell\\cry_locker\\command";
-    regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
+    regmenu = Registry.ClassesRoot.CreateSubKey($".{ext}\\DefaultIcon");
     if (regmenu != null)
     {
-        regmenu.SetValue("", "Decrypt");
-    }
-    regcmd = Registry.ClassesRoot.CreateSubKey(command);
-    if (regcmd != null)
-    {
-        regcmd.SetValue("", "cmd /c cry_locker -d \"%1\"");
+        string p = $"{loc}{exeName}";
+        regmenu.SetValue("", p);
     }
 }
 catch (Exception e)
@@ -97,62 +152,7 @@ finally
     if (regcmd != null) regcmd.Close();
 }*/
 
-//Setup file association
-try 
-{
-    //https://stackoverflow.com/questions/17946282/whats-the-hash-in-hkcu-software-microsoft-windows-currentversion-explorer-filee
-    //https://kolbi.cz/blog/2017/10/25/setuserfta-userchoice-hash-defeated-set-file-type-associations-per-user/
 
-    //Inputs
-    string extension = ".cry_locker";
-    string sid; //SID of the current user
-    string progid = "IDK what my program is called";
-    string regdate = ""; //timestamp of the UserChoice registry key
-    string expereience;
-
-    //Computer\HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.cry_locker\UserChoice
-
-    string MenuName = ".cry_locker\\shell\\cry_locker";
-    string command = ".cry_locker\\shell\\cry_locker\\command";
-    //regmenu = Registry.ClassesRoot.CreateSubKey(MenuName);
-
-    // The stuff that was above here is basically the same
-
-    // Delete the key instead of trying to change it
-    var CurrentUser = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\.cry_locker", true);
-    CurrentUser?.DeleteSubKey("UserChoice", false);
-    CurrentUser?.CreateSubKey("UserChoice", false);
-    CurrentUser?.SetValue("ProgId", "");
-
-    //hash = Base64(MicrosoftHash(MD5(toLower(extension, sid, progid, regdate, experience))))
-    //var hash = Ba
-    CurrentUser?.SetValue("Hash", "");
-    CurrentUser?.Close();
-
-    // Tell explorer the file association has been changed
-    //SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
-    /*    regmenu = Registry.
-        if (regmenu != null)
-        {
-            regmenu.SetValue("", "Decrypt");
-        }
-        regcmd = Registry.ClassesRoot.CreateSubKey(command);
-        if (regcmd != null)
-        {
-            regcmd.SetValue("", "cmd /c cry_locker -d \"%1\"");
-        }*/
-}
-catch (Exception e)
-{
-    Console.WriteLine(e.Message);
-    Console.ReadLine();
-    throw;
-}
-finally
-{
-    if (regmenu != null) regmenu.Close();
-    if (regcmd != null) regcmd.Close();
-}
 
 //Setup environment path
 try
@@ -166,12 +166,27 @@ try
 
     using var envKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", true);
     Contract.Assert(envKey != null, @"registry key is missing!");
-    FileInfo f = new FileInfo(loc);
 
-    //envKey.SetValue("cry_locker", $"{f.DirectoryName}");
+
+    //Get current env variables.
     string key = envKey.GetValue("Path").ToString();
-    envKey.SetValue("Path", $"{key}{f.DirectoryName};");
+    var entries = key.Split(';'); //split into seperate paths.
+    bool foundMatch = false;
+	foreach (var item in entries)//Look if the desired path already exists
+	{
+        if(item == loc)
+		{
+            foundMatch = true;
+            break;
+		}
+	}
 
+    //If path is already there, don't make a duplicate.
+	if (!foundMatch)
+	{
+        envKey.SetValue("Path", $"{key}{loc};");
+    }
+    
     //Tell windows to refresh
     SendNotifyMessage((IntPtr)HWND_BROADCAST, WM_SETTINGCHANGE, (UIntPtr)0, "Environment");
 

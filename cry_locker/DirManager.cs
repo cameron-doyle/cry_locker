@@ -118,16 +118,19 @@ public class DirManager
 		//Setup vars used to indicate progress to the user.
 		if (!locker.IsArchive() && TargetFile != null)
 		{
-			TotalBytes = TargetFile.Length; //Get total bytes for single file encryption
+			//Prevent divide by zero crash
+			if (TargetFile.Length >= 1)
+				TotalBytes = TargetFile.Length;
 		}
 		else
 		{
 			//Calculate total bytes in all files in dirManager
-			TotalBytes = 0;
+			TotalBytes = 1; //Divide by zero fix
 			foreach (var file in files)
 			{
 				TotalBytes += file.Info.Length;
 			}
+			TotalBytes -= 1; //Correction for the first byte
 		}
 
 		//Clear and reinitualize Failed item list.
@@ -292,15 +295,23 @@ public class DirManager
 
 						using var cs = new CryptoStream(bRead, locker.GetDecryptor(), CryptoStreamMode.Read);
 
-						string fname = locker.GetFileName();
-						var sname = fname.Split(".");
+						//Bug, when multple periods in name, the wrong file name gets used
+						//(?<!^)\.[^.]+$
+						//string fname = locker.GetFileName();
+						string? temp_name = locker.GetConfig().FileName;
+						if(temp_name == null)
+							temp_name = locker.GetFileName();
+
 						int index = 0;
-						while (File.Exists($"{locker.GetDirectoryPath()}/{fname}") || Directory.Exists($"{locker.GetDirectoryPath()}/{fname}"))
+						string file_name = temp_name;
+						string ext = Regex.Match(file_name, @"(?<!^)\.[^.]+$").ToString();
+						while (File.Exists($"{locker.GetDirectoryPath()}/{file_name}") || Directory.Exists($"{locker.GetDirectoryPath()}/{file_name}"))
 						{
 							index++;
-							fname = $"{sname[0]}({index}).{sname[1]}";
+
+							file_name = Regex.Replace(temp_name, @"(?<!^)\.[^.]+$", $"({index}){ext}", RegexOptions.IgnoreCase);
 						}
-						string path = $"{locker.GetDirectoryPath()}/{fname}";
+						string path = $"{locker.GetDirectoryPath()}/{file_name}";
 						using FileStream fWrite = File.Create(path);
 						DecryptingPath = path;
 						using BufferedStream bWrite = new(fWrite);
@@ -505,6 +516,10 @@ public class OurFile
 	{
 		try
 		{
+			if (Info.Length <= 0)
+			{
+				throw new Exception("File empty");
+			}
 			StartingByte = new FileInfo(locker.GetLockerFile().FullName).Length;
 
 			using (FileStream fileRead = Info.OpenRead())
@@ -943,7 +958,7 @@ public class Locker
 	public string GetFileName()
 	{
 		string? temp_name = null;
-		if (LockerConfig == null)
+		if (LockerConfig != null)
 			temp_name = GetConfig().FileName;
 
 		if (temp_name == null)
@@ -1030,13 +1045,13 @@ public class Locker
 		{
 			throw new NullReferenceException("LockerConfig cannot be null when Generating a locker");
 		}
-
-		string name = $"{Regex.Replace(fileName, @"\.(.[^.] +$)", "", RegexOptions.IgnoreCase)}.{CryLocker.extention}";
+		//(?<!^)\.[^.]+$
+		string name = $"{Regex.Replace(fileName, @"(?<!^)\.[^.]+$", "", RegexOptions.IgnoreCase)}.{CryLocker.extention}";
 		int index = 0;
 		while (File.Exists(name) || Directory.Exists(name))
 		{
 			index++;
-			name = $"{Regex.Replace(fileName, $"[.](.*)$", "", RegexOptions.IgnoreCase)}({index}).{CryLocker.extention}";
+			name = $"{Regex.Replace(fileName, @"(?<!^)\.[^.]+$", "", RegexOptions.IgnoreCase)}({index}).{CryLocker.extention}";
 		}
 
 		try
