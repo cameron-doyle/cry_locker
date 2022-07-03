@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Reflection;
 
-namespace cry_locker
+namespace crylocker
 {
     class CryLocker
     {
@@ -21,7 +21,7 @@ namespace cry_locker
         private static string _icon = "|";
 
         private static Process? explorer;
-        public const string extention = "cry_locker";
+        public const string extention = "clea";
         static void Main(string[] args)
         {
             string loc = $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}";
@@ -31,9 +31,9 @@ namespace cry_locker
             string? path = "";
 
             //Test hardcoding
-            args = new string[1];
+            //args = new string[1];
             //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.cry_locker";
-            args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.txt";
+            //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.txt";
 
             if (args.Length == 1)
 			{
@@ -292,8 +292,8 @@ namespace cry_locker
 				//Ask for password
 				#region Password
 
-                string? password = "abc";
-				/*bool badPassword = true;
+                string? password = "";
+				bool badPassword = true;
 				Console.CursorVisible = true;
 				while (badPassword)
 				{
@@ -361,7 +361,7 @@ namespace cry_locker
 						ConsoleClearLine();
 						Console.WriteLine("Passwords must contain 1 lower, upper, number and symbol with a minimum length of 10 (max 256)");
 					}
-				}*/
+				}
 				#endregion
 
 				ConsoleClearLine();
@@ -377,6 +377,14 @@ namespace cry_locker
                     ex = new FileInfo(path).Name;
                 LockerConfig lc = new(isFolder, GenerateRandomBytes(), ex);
                 locker.SetConfig(lc);
+
+                locker.GenerateKey(password);
+
+                //Clear password from RAM
+                password = null;
+
+
+                GC.Collect();
                 if (isFolder)
                 {
                     var dir = new DirectoryInfo(path);
@@ -389,12 +397,6 @@ namespace cry_locker
                     locker.GenerateLocker(file.FullName);
                     DM = new(file);
                 }
-
-                locker.GenerateKey(password);
-
-                //Clear password from RAM
-                password = null;
-                GC.Collect();
 
                 ConsoleClearLine(1);
                 //Begin encryption
@@ -574,9 +576,9 @@ namespace cry_locker
 				//Ask for password
 				#region password
 				Console.Write("Password:");
-                string password = "abc";
+                string password = "";
 
-				/*ConsoleKey k;
+				ConsoleKey k;
 				do
 				{
 					var keyInfo = Console.ReadKey(true);
@@ -594,10 +596,10 @@ namespace cry_locker
 					}
 				} while (k != ConsoleKey.Enter);
 
-				password = password.Trim();*/
-                #endregion
+				password = password.Trim();
+				#endregion
 
-                ConsoleClearLine();
+				ConsoleClearLine();
                 Console.WriteLine("Loading Locker...");
 
                 DirManager.IsDecrypted = false;

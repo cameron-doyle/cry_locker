@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 RegistryKey? regmenu = null;
 RegistryKey? regcmd = null;
 
-string ext = "cry_locker";
-string exeName = "cry_locker.exe";
+string ext = "clea";
+string exeName = "crylocker.exe";
 
 string loc = AppContext.BaseDirectory;
 
@@ -184,7 +184,7 @@ try
     //If path is already there, don't make a duplicate.
 	if (!foundMatch)
 	{
-        envKey.SetValue("Path", $"{key}{loc};");
+        envKey.SetValue("Path", $"{key};{loc};");
     }
     
     //Tell windows to refresh

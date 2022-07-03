@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.ComponentModel;
 using System.Text.RegularExpressions;
-using cry_locker;
+using crylocker;
 using Konscious.Security.Cryptography;
 
 /// <summary>
@@ -376,11 +376,32 @@ public class Dir
 	/// </summary>
 	public long Size { get; private set; }
 
+	/// <summary>
+	/// Parent Directory in the structure, null if this is the root
+	/// </summary>
 	private Dir? Parent; //If null, it signified it's the root
+
+	/// <summary>
+	/// List of Sub Directory in the structure
+	/// </summary>
 	private List<Dir> SubDirs = new();
+
+	/// <summary>
+	/// List of Files in the Directory
+	/// </summary>
 	private List<OurFile> Files = new();
+
+	/// <summary>
+	/// Indicates if the sub structures have been complete explored
+	/// </summary>
 	private bool Loaded = false;
 
+	/// <summary>
+	/// Constructor that seaches the sub structure and does various calculations like Dir size
+	/// </summary>
+	/// <param name="manager">Reference to DirManager</param>
+	/// <param name="dir">Filesystem reference</param>
+	/// <param name="parent">Parent Directory, null if root</param>
 	public Dir(DirManager manager, DirectoryInfo dir, Dir? parent = null)
 	{
 		Manager = manager;
@@ -414,9 +435,15 @@ public class Dir
 		return Loaded;
 	}
 
+	/// <summary>
+	/// Gets all the files in the folder and sub folders
+	/// </summary>
+	/// <returns>List of file entities</returns>
 	public List<OurFile> GetFiles()
 	{
 		List<OurFile> temp = new();
+
+		//Get files in all sub folders
 		foreach (Dir d in SubDirs)
 		{
 			foreach (OurFile f in d.GetFiles())
@@ -425,6 +452,7 @@ public class Dir
 			}
 		}
 
+		//Get files in self
 		foreach (OurFile f in Files)
 		{
 			temp.Add(f);
@@ -433,16 +461,21 @@ public class Dir
 		return temp;
 	}
 
+	/// <summary>
+	/// Gets the path relative to the root directory
+	/// </summary>
+	/// <returns></returns>
 	public string GetLocalPath()
 	{
+		//Check if root
 		if (Parent != null)
 		{
-			return $"{Parent.GetLocalPath()}{Self.Name}/";
+			return $"{Parent.GetLocalPath()}{Self.Name}/"; //Get relative path
 		}
 		else
 		{
 			//Is root
-			return $"/";
+			return "/";
 		}
 	}
 }
@@ -506,7 +539,7 @@ public class OurFile
 	}
 
 	/// <summary>
-	/// Encrypts the files content and writes to end of locker.
+	/// Encrypts the file content and writes to end of locker.
 	/// </summary>
 	/// <param name="locker">locker (file) to write to</param>
 	/// <param name="manager">used as a callback if encryption fails</param>
@@ -516,19 +549,25 @@ public class OurFile
 	{
 		try
 		{
+			//Check if the file is empty
 			if (Info.Length <= 0)
 			{
 				throw new Exception("File empty");
 			}
+
+			//Note starting byte by checking the locker length
+			//Could override this by getting the previous files starting byte and length, which would future proof for adding a file to a locker
 			StartingByte = new FileInfo(locker.GetLockerFile().FullName).Length;
 
+			//Open target file
 			using (FileStream fileRead = Info.OpenRead())
 			{
-				long startingLength = locker.GetWriteStream().Length;
+				long startingLength = locker.GetWriteStream().Length; //Get length of locker file (used to calc a encrpted byte length)
 					
 				using BufferedStream bRead = new(fileRead);
-				locker.GetWriteStream().Seek(0, SeekOrigin.End);
+				locker.GetWriteStream().Seek(0, SeekOrigin.End); //Seek to end of locker file
 
+				//If debug, disable encryption and enable headers
 				if (debug)
 				{
 					//Write debug file header
@@ -546,10 +585,11 @@ public class OurFile
 				}
 				else
 				{
-					using CryptoStream cs = new(bRead, locker.GetEncryptor(), CryptoStreamMode.Read);
-					cs.CopyTo(locker.GetWriteStream());
+					using CryptoStream cs = new(bRead, locker.GetEncryptor(), CryptoStreamMode.Read); //Encrypt from buffer
+					cs.CopyTo(locker.GetWriteStream()); //Copy from cs to write stream.
 				}
 
+				//Calculate the length of bytes for the encrypted data. This will be used to differentiate the files from each other in the locker.
 				Length = (long)(locker.GetWriteStream().Length - startingLength);
 			}
 			
@@ -919,7 +959,7 @@ public class Locker
 	public LockerConfig GetConfig()
 	{
 		if (LockerConfig == null)
-			return LoadConfig();
+			return LoadConfig(this);
 		else return LockerConfig;
 	}
 
@@ -989,7 +1029,7 @@ public class Locker
 		return Key.CreateDecryptor();
 	}
 
-	private Aes GetKey()
+	public Aes GetKey()
 	{
 		if(Key != null)
 		{
@@ -1056,7 +1096,7 @@ public class Locker
 
 		try
 		{
-			string obj = LockerConfig.Serialize();
+			string obj = LockerConfig.Serialize(GetKey());
 			using (var fs = File.Create(name))
 			{
 				using(StreamWriter sw = new StreamWriter(fs))
@@ -1126,7 +1166,7 @@ public class Locker
 	/// <returns></returns>
 	/// <exception cref="NullReferenceException">LockerFile != null</exception>
 	/// <exception cref="Exception">Config header couldn't be found or the end token is missing</exception>
-	private LockerConfig LoadConfig()
+	private LockerConfig LoadConfig(Locker locker)
 	{
 		if (LockerFile == null)
 		{
@@ -1157,7 +1197,7 @@ public class Locker
 						char b = br.ReadChar();
 						if (b == 93) // 93 = 5d (] in hex)
 						{
-							LockerConfig = LockerConfig.Deserialize(result);
+							LockerConfig = LockerConfig.Deserialize(result, this);
 							return LockerConfig;
 						}
 						else result += b; //Add to results and continue scanning (this prevents end token being mixed into the config data)
@@ -1192,7 +1232,23 @@ public class LockerConfig
 	/// <summary>
 	/// The Original file name (single file encryption only)
 	/// </summary>
-	public string? FileName { get; private set; }
+
+	private string? fileName;
+	public string? FileName {
+		get { 
+			if(!IsDecrypted)
+			{
+				if (Manager == null)
+					throw new Exception("Manager is null! call Deserialize first!");
+				fileName = DecryptData(fileName, Manager.GetKey());
+			}
+			return fileName;
+		} 
+
+		private set {
+			fileName = value;
+		} 
+	}
 
 	/// <summary>
 	/// 
@@ -1200,6 +1256,10 @@ public class LockerConfig
 	public int DegreeOfParallelism { get; private set; }
 	public int MemorySize { get; private set; }
 	public int Iterations { get; private set; }
+
+	private bool IsDecrypted = true;
+
+	private Locker? Manager = null;
 	#endregion
 
 	public LockerConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
@@ -1212,25 +1272,83 @@ public class LockerConfig
 		Iterations = iterations;
 	}
 
-	public string Serialize()
+	public string? EncryptData(string? input, Aes key)
 	{
-		//TODO encrypt filename
-		string js = JsonSerializer.Serialize(this);
+		if (input == null)
+			return null;
+
+		try
+		{
+			var plainBytes = Encoding.UTF8.GetBytes(input);
+			using MemoryStream ms = new();
+			using CryptoStream cs = new(ms, key.CreateEncryptor(), CryptoStreamMode.Write);
+			cs.Write(plainBytes, 0, plainBytes.Length);
+			cs.FlushFinalBlock();
+
+			var output = Convert.ToHexString(ms.ToArray()).ToLower();
+
+			return output;
+		}
+		catch (Exception e)
+		{
+			throw e;
+		}
+
+	}
+
+	public string? DecryptData(string? input, Aes key)
+	{
+		if (input == null)
+			return null;
+
+		try
+		{
+			var encryptedBytes = Convert.FromHexString(input);
+			using MemoryStream ms = new();
+			using CryptoStream cs = new(ms, key.CreateDecryptor(), CryptoStreamMode.Write);
+			cs.Write(encryptedBytes, 0, encryptedBytes.Length);
+			cs.FlushFinalBlock();
+
+			var output = System.Text.Encoding.Default.GetString(ms.ToArray());
+
+			return output;
+		}
+		catch (Exception e)
+		{
+			throw e;
+		}
+
+	}
+
+	//Serlizes the lockerConfig (and encrypts filename for single file encryption)
+	public string Serialize(Aes key)
+	{
+		string js = JsonSerializer.Serialize(
+			new LockerConfig(
+			IsArchive,
+			Salt,
+			EncryptData(FileName, key),
+			DegreeOfParallelism,
+			MemorySize,
+			Iterations));
+
 		byte[] bytes = Encoding.Default.GetBytes(js);
 		string hex = Convert.ToHexString(bytes).ToLower();
 		return hex;
 	}
 
-	public static LockerConfig Deserialize(string input)
+
+	public static LockerConfig Deserialize(string input, Locker manager)
 	{
-		//TODO decrypt filename
 		var decoded = Convert.FromHexString(input);
-		var newItems = JsonSerializer.Deserialize<LockerConfig>(decoded);
-		if(newItems == null)
+		var conf = JsonSerializer.Deserialize<LockerConfig>(decoded);
+		if(conf == null)
 		{
 			throw new NullReferenceException("Failed to deserialize LockerConfig");
 		}
-		return newItems;
+		conf.IsDecrypted = false; //Marks the FileName as encrypted
+		conf.Manager = manager; //Passes the manager for filename decryption
+		return conf;
 	}
 }
 
