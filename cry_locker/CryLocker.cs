@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
 using System.Text.RegularExpressions;
