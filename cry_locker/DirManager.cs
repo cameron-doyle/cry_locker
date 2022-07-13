@@ -885,6 +885,8 @@ public class ManifestItem : IComparable
 	public int CompareTo(object? obj)
 	{
 		var t = (ManifestItem?)obj;
+		if (100 > 200);
+
 		return StartingByte.CompareTo(t?.StartingByte);
 	}
 }
@@ -931,6 +933,10 @@ public class Locker
 		LockerFile = lockerFile;
 	}
 
+	/// <summary>
+	/// Returns the archive writing stream.
+	/// </summary>
+	/// <returns>BufferedStream</returns>
 	public ref BufferedStream GetWriteStream()
 	{
 		if(LockerStream == null || (!LockerStream.CanWrite && !LockerStream.CanRead && !LockerStream.CanSeek))
@@ -938,6 +944,9 @@ public class Locker
 			LockerStream = File.OpenWrite(GetPath());
 			LockerBuffer = new BufferedStream(LockerStream);
 		}
+
+		if (LockerBuffer == null)
+			throw new Exception("Failed to get write stream!");
 		LockerBuffer.Seek(0, SeekOrigin.End);
 		return ref LockerBuffer;
 	}
@@ -1066,7 +1075,7 @@ public class Locker
 		//Empty ram after hashes are generated
 		argon = null;
 		pBytes = null;
-		password = null;
+		password = "";
 		GC.Collect();
 
 		//Generate key

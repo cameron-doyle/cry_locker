@@ -67,7 +67,6 @@ namespace crylocker
 
                 case "decrypt":
                     Decrypt(path);
-                    //clear = true;
                     break;
 
                 case "help":
@@ -279,18 +278,27 @@ namespace crylocker
         private static void Encrypt(string path)
         {
             bool isFolder = false;
-            //DirectoryInfo? dir = null;
-            //FileInfo? file = null;
 
             var type = EvalAction(path);
 
+            //If file, or directory with at least one file.
             if (type == EvalType.encrypt_dir || type == EvalType.encrypt_file)
             {
                 if (type == EvalType.encrypt_dir)
+				{
+                    //Directory is empty
+                    if((new DirectoryInfo(path)).GetFiles().Count() <= 0){
+                        Console.WriteLine("The folder is empty!");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
+					}
                     isFolder = true;
 
-				//Ask for password
-				#region Password
+                }
+
+                //Ask for password
+                #region Password
 
                 string? password = "";
 				bool badPassword = true;
