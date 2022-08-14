@@ -9,8 +9,8 @@ Capable of encrypting and decrypting individual files or entire folders.
 
 # Use:
 NOTE: We have gone to great effort to protect your data, the program will not overwrite existing files/folder when decrypting and will not automatically delete data after encrypting.
-To encrypt, right click on a file/folder and select the "Encrypt" option, follow the onscreen prompts to encrypt.
-To decrypt, open the locker file and follow the onscreen prompts.
+<br>To encrypt, right click on a file/folder and select the "Encrypt" option, follow the onscreen prompts to encrypt.
+<br>To decrypt, open the locker file and follow the onscreen prompts.
 
 # To uninstall
 WARNING: DO NOT mess with the registry or the environment variables unless you know exactly what you are doing.
