@@ -32,7 +32,7 @@ namespace crylocker
 
             //Test hardcoding
             //args = new string[1];
-            //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.cry_locker";
+            //args[0] = @"C:\Users\Camer\Documents\sensitive";
             //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.txt";
 
             if (args.Length == 1)
@@ -51,6 +51,10 @@ namespace crylocker
                         cmd = "encrypt";
                         path = args[0];
                         break;
+                    case EvalType.does_not_exist:
+                        cmd = "badPath";
+                        path = args[0];
+                        break;
                 }
             }
             else if(args.Length >= 2)
@@ -67,7 +71,6 @@ namespace crylocker
 
                 case "decrypt":
                     Decrypt(path);
-                    //clear = true;
                     break;
 
                 case "help":
@@ -77,7 +80,9 @@ namespace crylocker
                         "examples:\n-e sensitive_clients.txt\n-e important_folder" +
                         "");
                     break;
-
+                case "badPath":
+                    Console.WriteLine($"The path \"{path}\" does not exist!");
+                    break;
                 default:
                     Console.WriteLine($"Syntax invalid! use -h to see a list of commands");
                     break;
@@ -90,7 +95,8 @@ namespace crylocker
 		{
             decrypt,
             encrypt_file,
-            encrypt_dir
+            encrypt_dir,
+            does_not_exist
 		}
 
         private static EvalType? EvalAction(string path)
@@ -114,6 +120,23 @@ namespace crylocker
                     else if (f.Exists)
                     {
                         return EvalType.encrypt_file;
+                    }
+                }
+            }
+            else
+            {
+                //Checks if any points in the path exist, this is used to differenticate between bad path and bad syntax
+                var d = new DirectoryInfo(path);
+                var p = d.Parent;
+                while (p != null)
+                {
+                    if (p.Exists)
+                    {
+                        return EvalType.does_not_exist;
+                    }
+                    else
+                    {
+                        p = p.Parent;
                     }
                 }
             }
@@ -278,19 +301,35 @@ namespace crylocker
 
         private static void Encrypt(string path)
         {
-            bool isFolder = false;
-            //DirectoryInfo? dir = null;
-            //FileInfo? file = null;
-
             var type = EvalAction(path);
 
+            bool isFolder = false;
+
+            if (type == EvalType.encrypt_dir)
+                isFolder = true;
+
+            //If file, or directory.
             if (type == EvalType.encrypt_dir || type == EvalType.encrypt_file)
             {
-                if (type == EvalType.encrypt_dir)
-                    isFolder = true;
 
-				//Ask for password
-				#region Password
+                //Setup locker and Direcotry Manager
+                DirManager? DM = null;
+
+                if (isFolder)
+                {
+                    var dir = new DirectoryInfo(path);
+                    DM = new(dir);
+                    if (DM.GetFileCount() <= 0)
+                    {
+                        Console.WriteLine("The folder is empty!");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
+                    }
+                }
+
+                //Ask for password
+                #region Password
 
                 string? password = "";
 				bool badPassword = true;
@@ -368,8 +407,6 @@ namespace crylocker
                 Console.CursorVisible = true;
                 Console.WriteLine("Loading...");
 
-                //Setup locker and Direcotry Manager
-                DirManager? DM = null;
                 Locker? locker = new();
 
                 string? ex = null;
@@ -383,15 +420,16 @@ namespace crylocker
                 //Clear password from RAM
                 password = null;
 
-
                 GC.Collect();
+
+                //Generate locker file (Requires lockerKey to be generated beforehand)
                 if (isFolder)
                 {
                     var dir = new DirectoryInfo(path);
                     locker.GenerateLocker(dir.FullName);
-                    DM = new(dir);
                 }
-                else
+
+                if (!isFolder)
                 {
                     var file = new FileInfo(path);
                     locker.GenerateLocker(file.FullName);
