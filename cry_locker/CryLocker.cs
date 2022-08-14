@@ -32,7 +32,7 @@ namespace crylocker
 
             //Test hardcoding
             //args = new string[1];
-            //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.cry_locker";
+            //args[0] = @"C:\Users\Camer\Documents\sensitive";
             //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.txt";
 
             if (args.Length == 1)
@@ -277,24 +277,31 @@ namespace crylocker
 
         private static void Encrypt(string path)
         {
-            bool isFolder = false;
-
             var type = EvalAction(path);
 
-            //If file, or directory with at least one file.
+            bool isFolder = false;
+
+            if (type == EvalType.encrypt_dir)
+                isFolder = true;
+
+            //If file, or directory.
             if (type == EvalType.encrypt_dir || type == EvalType.encrypt_file)
             {
-                if (type == EvalType.encrypt_dir)
-				{
-                    //Directory is empty
-                    if((new DirectoryInfo(path)).GetFiles().Count() <= 0){
+
+                //Setup locker and Direcotry Manager
+                DirManager? DM = null;
+
+                if (isFolder)
+                {
+                    var dir = new DirectoryInfo(path);
+                    DM = new(dir);
+                    if (DM.GetFileCount() <= 0)
+                    {
                         Console.WriteLine("The folder is empty!");
                         Console.WriteLine("Press any key to continue...");
                         Console.ReadKey();
                         return;
-					}
-                    isFolder = true;
-
+                    }
                 }
 
                 //Ask for password
@@ -376,8 +383,6 @@ namespace crylocker
                 Console.CursorVisible = true;
                 Console.WriteLine("Loading...");
 
-                //Setup locker and Direcotry Manager
-                DirManager? DM = null;
                 Locker? locker = new();
 
                 string? ex = null;
@@ -391,15 +396,16 @@ namespace crylocker
                 //Clear password from RAM
                 password = null;
 
-
                 GC.Collect();
+
+                //Generate locker file (Requires lockerKey to be generated beforehand)
                 if (isFolder)
                 {
                     var dir = new DirectoryInfo(path);
                     locker.GenerateLocker(dir.FullName);
-                    DM = new(dir);
                 }
-                else
+
+                if (!isFolder)
                 {
                     var file = new FileInfo(path);
                     locker.GenerateLocker(file.FullName);
