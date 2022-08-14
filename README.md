@@ -8,12 +8,12 @@ Capable of encrypting and decrypting individual files or entire folders.
 3. Run the setup.exe to configure your system.
 
 # Use:
-<sub>NOTE: We have gone to great effort to protect your data, the program will not overwrite existing files/folder when decrypting and will not automatically delete data after encrypting.</sub>
+<em>NOTE: We have gone to great effort to protect your data, the program will not overwrite existing files/folder when decrypting and will not automatically delete data after encrypting.</em>
 <br>To encrypt, right click on a file/folder and select the "Encrypt" option, follow the onscreen prompts to encrypt.
 <br>To decrypt, open the locker file and follow the onscreen prompts.
 
 # To uninstall
-<sub>WARNING: DO NOT mess with the registry or the environment variables unless you know exactly what you are doing.</sub>
+<em>WARNING: DO NOT mess with the registry or the environment variables unless you know exactly what you are doing.</em>
 1. Delete the installation folder.
 2. Search "env" in the start menu.
 3. Open "Edit the system environment variables".
