@@ -51,6 +51,10 @@ namespace crylocker
                         cmd = "encrypt";
                         path = args[0];
                         break;
+                    case EvalType.does_not_exist:
+                        cmd = "badPath";
+                        path = args[0];
+                        break;
                 }
             }
             else if(args.Length >= 2)
@@ -76,7 +80,9 @@ namespace crylocker
                         "examples:\n-e sensitive_clients.txt\n-e important_folder" +
                         "");
                     break;
-
+                case "badPath":
+                    Console.WriteLine($"The path \"{path}\" does not exist!");
+                    break;
                 default:
                     Console.WriteLine($"Syntax invalid! use -h to see a list of commands");
                     break;
@@ -89,7 +95,8 @@ namespace crylocker
 		{
             decrypt,
             encrypt_file,
-            encrypt_dir
+            encrypt_dir,
+            does_not_exist
 		}
 
         private static EvalType? EvalAction(string path)
@@ -113,6 +120,23 @@ namespace crylocker
                     else if (f.Exists)
                     {
                         return EvalType.encrypt_file;
+                    }
+                }
+            }
+            else
+            {
+                //Checks if any points in the path exist, this is used to differenticate between bad path and bad syntax
+                var d = new DirectoryInfo(path);
+                var p = d.Parent;
+                while (p != null)
+                {
+                    if (p.Exists)
+                    {
+                        return EvalType.does_not_exist;
+                    }
+                    else
+                    {
+                        p = p.Parent;
                     }
                 }
             }
