@@ -3,7 +3,7 @@ An open source file encryptor that uses password derived AES256 keys (via Argon2
 Capable of encrypting and decrypting individual files or entire folders.
 
 To install:
-1. Head to the releases and download the latest version.
+1. Head to the <a href="https://github.com/TeaStudios/cry_locker/releases">releases</a> and download the latest version.
 2. Extract the zip file into the desired installation path.
 3. Run the setup.exe to configure your system.
 
