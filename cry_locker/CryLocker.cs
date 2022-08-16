@@ -32,8 +32,8 @@ namespace crylocker
 
             //Test hardcoding
             //args = new string[1];
-            //args[0] = @"C:\Users\Camer\Documents\sensitive";
-            //args[0] = @"C:\Users\Camer\Documents\VSProjects\cry_releases\New folder\.doc.fake.txt";
+            //args[0] = @"C:\Users\Camer\MyDocuments\sensitive";
+            //args[0] = @"C:\Users\Camer\MyDocuments\sensitive\software_keys\Windows 10 Pro product Key.clea";
 
             if (args.Length == 1)
 			{
@@ -318,14 +318,7 @@ namespace crylocker
                 if (isFolder)
                 {
                     var dir = new DirectoryInfo(path);
-                    DM = new(dir);
-                    if (DM.GetFileCount() <= 0)
-                    {
-                        Console.WriteLine("The folder is empty!");
-                        Console.WriteLine("Press any key to continue...");
-                        Console.ReadKey();
-                        return;
-                    }
+                    DM = new(dir, true);
                 }
 
                 //Ask for password
@@ -404,8 +397,8 @@ namespace crylocker
 				#endregion
 
 				ConsoleClearLine();
-                Console.CursorVisible = true;
-                Console.WriteLine("Loading...");
+                Console.CursorVisible = false;
+                //Console.WriteLine("Generating Key...");
 
                 Locker? locker = new();
 
@@ -415,19 +408,27 @@ namespace crylocker
                 LockerConfig lc = new(isFolder, GenerateRandomBytes(), ex);
                 locker.SetConfig(lc);
 
-                locker.GenerateKey(password);
+                //var sw = Stopwatch.StartNew();
+
+                new Thread(() => locker.GenerateKey(password)).Start();
+                while (!locker.IsKeyGenerated())
+				{
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"{GetLoading()} Generating Key...");
+                    Thread.Sleep(250);
+                }
+/*                sw.Stop();
+                var t = sw.ElapsedMilliseconds;*/
+
+/*                Console.Clear();
+                Console.WriteLine($"Key Generation time: {Math.Round((double)t / 1000, 2)}s");
+                Console.ReadLine();*/
 
                 //Clear password from RAM
                 password = null;
 
                 GC.Collect();
-
-                //Generate locker file (Requires lockerKey to be generated beforehand)
-                if (isFolder)
-                {
-                    var dir = new DirectoryInfo(path);
-                    locker.GenerateLocker(dir.FullName);
-                }
+                //return;
 
                 if (!isFolder)
                 {
@@ -436,13 +437,37 @@ namespace crylocker
                     DM = new(file);
                 }
 
-                ConsoleClearLine(1);
+                ConsoleClearLine();
                 //Begin encryption
                 while (!DM.IsLoaded())
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
                     Console.Write($"{GetLoading()} Discovering file(s)...");
                     Thread.Sleep(250);
+                }
+
+                //Check for empty folder structure (not a single file in the entire structure)
+				if (isFolder)
+				{
+                    if (DM.RootDir == null)
+                    {
+                        throw new Exception("DM is null?!");
+                    }
+
+                    if (DM.GetFileCount() <= 0)
+                    {
+                        Console.WriteLine("The folder is empty!");
+                        Console.WriteLine("Press any key to continue...");
+                        Console.ReadKey();
+                        return;
+                    }
+                }
+
+                //Generate locker file (Requires lockerKey to be generated beforehand)
+                if (isFolder)
+                {
+                    var dir = new DirectoryInfo(path);
+                    locker.GenerateLocker(dir.FullName);
                 }
 
                 new Thread(() => DM.Encrypt(locker, debug)).Start();
@@ -464,13 +489,13 @@ namespace crylocker
                         t_total = DM.TotalBytes;
 
                     //Display progress
-                    Console.Write($"{GetLoading()} Encrypting: {Math.Round((((decimal)t_length / (decimal)t_total)) * 100, 2)}%");
+                    Console.Write($"{ GetLoading()} Encrypting: {Math.Round((((decimal)t_length / (decimal)t_total)) * 100, 2)}%");
                     Thread.Sleep(250);
                 }
 
-                
 
-                //Check hashing
+                Console.CursorVisible = true;
+
 
                 var failed = DM.Failed;
                 var total = DM.GetFileCount();
@@ -498,8 +523,16 @@ namespace crylocker
                         string s = "s";
                         foreach (var f in failed)
                         {
-                            Console.WriteLine($"{f.File.Path}{f.File.Name}");
-                            Console.WriteLine($"{f.Exception.Message}\n");
+                            if (f.Type == "file")
+                            {
+                                Console.WriteLine($"{f.Type}:{f.File.Path}{f.File.Name}");
+                                Console.WriteLine($"{f.Exception.Message}\n");
+                            }
+                            else
+							{
+                                Console.WriteLine($"{f.Type}:{f.Dir.FullName}");
+                                Console.WriteLine($"{f.Exception.Message}\n");
+                            }
                         }
                         if(total == failed.Count)
 						{
@@ -534,6 +567,7 @@ namespace crylocker
 
         public static void PromptToDelete(Locker locker, DirManager DM)
 		{
+            Console.CursorVisible = true;
             string type = (locker.IsArchive()) ? "folder" : "file";
             bool inputRecognised = false;
 			while (!inputRecognised)
@@ -636,7 +670,6 @@ namespace crylocker
 
 				password = password.Trim();
 				#endregion
-
 				ConsoleClearLine();
                 Console.WriteLine("Loading Locker...");
 
@@ -701,9 +734,8 @@ namespace crylocker
                     
                     if (DirManager.DecryptFailed && DirManager.DecryptFailReason != null)
                     {
-                        ConsoleClearLine();
-                        Console.WriteLine("Decryption failed with reason:");
-                        Console.WriteLine(DirManager.DecryptFailReason);
+                        Console.Clear();
+                        Console.WriteLine($"Decryption Failed: {DirManager.DecryptFailReason}");
                         Console.WriteLine("Press any key to continue...");
                         if (outputDir != null)
                             outputDir.Delete(true);
