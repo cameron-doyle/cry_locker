@@ -1,6 +1,11 @@
 # cry_locker
 An open source file encryptor that uses password derived AES256 keys (via Argon2).
-Capable of encrypting and decrypting individual files or entire folders.
+Capable of encrypting and decrypting individual files or entire folder structures.
+
+# Key features:
+1. Encryption without storing the password or key on the system or in the locker (archive).
+2. Efficient encryption of directories into a single locker file (uncompressed archive).
+3. Encryption of file names and metadata to avoid gleaming of content.
 
 # To install:
 1. Head to the <a href="https://github.com/TeaStudios/cry_locker/releases">releases</a> and download the latest version.
