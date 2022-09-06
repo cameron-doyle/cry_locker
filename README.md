@@ -1,3 +1,6 @@
+# NOTE:
+Requires .NET 6 or greater (VS studio 2022+)
+
 # cry_locker
 An open source file encryptor that uses password derived AES256 keys (via Argon2).
 Capable of encrypting and decrypting individual files or entire folder structures.
