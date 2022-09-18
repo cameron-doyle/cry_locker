@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Text.RegularExpressions;
 using crylocker;
 using Konscious.Security.Cryptography;
+using System.Security.Permissions;
 
 /// <summary>
 /// Represents and manages a directory structure including sub dirs.
@@ -51,9 +52,16 @@ public class DirManager
 	/// Constructor for DirManager
 	/// </summary>
 	/// <param name="rootDir">The root directory to be encrypted (folder encryption)</param>
-	public DirManager(DirectoryInfo rootDir)
+	public DirManager(DirectoryInfo rootDir, bool threaded = false)
 	{
-		RootDir = new Dir(this, rootDir);
+		if (threaded)
+		{
+			new Thread(() =>
+			{
+				RootDir = new Dir(this, rootDir);
+			}).Start();
+		}
+		else RootDir = new Dir(this, rootDir);
 	}
 	/// <summary>
 	/// Constructor for DirManager
@@ -71,7 +79,17 @@ public class DirManager
 	/// <returns>true/false</returns>
 	public bool IsLoaded()
 	{
-		return (RootDir == null) ? true: RootDir.IsLoaded();
+		if ((RootDir == null && TargetFile == null) || (RootDir != null && !RootDir.IsLoaded()))
+		{
+			//if Both rootDir and Target and null (Means rootdir is still loading)
+			//Or rootdir is loaded (Single thread) and IsLoaded returns false;
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+		//return (RootDir == null) ? true: RootDir.IsLoaded();
 	}
 
 	/// <summary>
@@ -260,7 +278,10 @@ public class DirManager
 				{
 					DecryptFailReason = e.Message;
 					if (e.Message == "Padding is invalid and cannot be removed.")
-						DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
+					{
+						DecryptFailReason = "This error sometimes occurs if the hard drive is full...";
+					}
+						
 					DecryptFailed = true;
 					break;
 				}
@@ -324,7 +345,7 @@ public class DirManager
 			{
 				DecryptFailReason = e.Message;
 				if (e.Message == "Padding is invalid and cannot be removed.")
-					DecryptFailReason = e.Message + "\nThis error sometimes occurs if the hard drive is full...";
+					DecryptFailReason = "Password is incorrect, please try again!";
 				DecryptFailed = true;
 			}
 		}
@@ -409,19 +430,42 @@ public class Dir
 		Self = dir;
 		Size = 0;
 
+		FileAttributes attr = Self.Attributes;
+		if (attr.HasFlag(FileAttributes.Offline) || attr.HasFlag(FileAttributes.Device) || attr.HasFlag(FileAttributes.System))
+		{
+			throw new Exception("Permission denied when trying to read Directory.");
+		}
+
 		//Foreach sub Directory found by file system, create a new Dir instance and save into SubDirs list
 		foreach (var d in Self.GetDirectories())
 		{
-			Dir subD = new(manager, d, this);
-			SubDirs.Add(subD);
-			Size += subD.Size; //Calculate dir byte size
+			try
+			{
+				Dir subD = new(manager, d, this);
+				SubDirs.Add(subD);
+				Size += subD.Size; //Calculate dir byte size
+			}
+			catch (Exception e)
+			{
+				//If access violation occurs
+				Manager.Failed.Add(new FailedItem(d, e));
+			}
 		}
 
 		foreach (FileInfo f in dir.GetFiles())
 		{
-			Size += f.Length;
-			OurFile nf = new(f, this);
-			Files.Add(nf);
+			try
+			{
+				Size += f.Length;
+				OurFile nf = new(f, this);
+				Files.Add(nf);
+			}
+			catch (Exception e)
+			{
+				//If access violation occurs
+				Manager.Failed.Add(new FailedItem(new OurFile(f, this), e));
+			}
+
 		}
 		Loaded = true;
 	}
@@ -688,7 +732,7 @@ public class Manifest : IEnumerable<ManifestItem>
 
 	}
 
-	public static Manifest LoadManifest(Locker locker, bool debug = false)
+	public static Manifest? LoadManifest(Locker locker, bool debug = false)
 	{
 		try
 		{
@@ -741,9 +785,9 @@ public class Manifest : IEnumerable<ManifestItem>
 			}
 			throw new Exception("Failed to find manifest in archive");
 		}
-		catch (Exception e)
+		catch (Exception)
 		{
-			throw e;
+			return null;
 		}
 		
 	}
@@ -926,6 +970,11 @@ public class Locker
 	/// The AES256 symetric key
 	/// </summary>
 	private Aes? Key;
+
+	/// <summary>
+	/// Indicated if the AES256 key has finished generating
+	/// </summary>
+	private bool _isKeyGenerated = false;
 	#endregion
 
 	public Locker(FileInfo? lockerFile = null)
@@ -975,6 +1024,11 @@ public class Locker
 	public void SetConfig(LockerConfig config)
 	{
 		LockerConfig = config;
+	}
+
+	public bool IsKeyGenerated()
+	{
+		return _isKeyGenerated;
 	}
 
 	public Manifest GetManifest()
@@ -1086,6 +1140,7 @@ public class Locker
 		AES.Padding = PaddingMode.PKCS7;
 
 		Key = AES;
+		_isKeyGenerated = true;
 	}
 
 	public void GenerateLocker(string fileName)
@@ -1116,6 +1171,7 @@ public class Locker
 		}
 		catch (Exception e)
 		{
+			Console.WriteLine("Failed to write locker file, this is likely due to a lack of permissions.");
 			throw e;
 		}
 		LockerFile = new FileInfo(name);
@@ -1271,7 +1327,7 @@ public class LockerConfig
 	private Locker? Manager = null;
 	#endregion
 
-	public LockerConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 8192, int iterations = 40)
+	public LockerConfig(bool isArchive, byte[] salt, string? fileName = null, int degreeOfParallelism = 16, int memorySize = 2097152 /*KB*/, int iterations = 3)
 	{
 		IsArchive = isArchive;
 		FileName = fileName;
@@ -1366,11 +1422,20 @@ public class LockerConfig
 /// </summary>
 public class FailedItem
 {
-	public OurFile File { get; private set; }
+	public OurFile? File { get; private set; }
+	public DirectoryInfo? Dir { get; private set; }
 	public Exception Exception { get; private set; }
+	public string Type { get; private set; }
 	public FailedItem(OurFile file, Exception exception)
 	{
 		File = file;
+		Type = "file";
+		Exception = exception;
+	}
+	public FailedItem(DirectoryInfo dir, Exception exception)
+	{
+		Dir = dir;
+		Type = "directory";
 		Exception = exception;
 	}
 }
